@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { Task } from "@/types/microplan";
 
 export default function DayPage() {
@@ -9,7 +12,7 @@ export default function DayPage() {
     day: "numeric",
   });
 
-  const tasks: Task[] = [
+  const [tasks, setTasks] = useState<Task[]>([
     {
       id: "1",
       title: "Complete project planning",
@@ -28,7 +31,15 @@ export default function DayPage() {
       completed: false,
       carriedForward: true,
     },
-  ];
+  ]);
+
+  const toggleTask = (id: string) => {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === id ? { ...task, completed: !task.completed } : task
+      )
+    );
+  };
 
   return (
     <div>
@@ -39,11 +50,23 @@ export default function DayPage() {
       <div>
         {tasks.map((task) => (
           <div key={task.id}>
-            <div>
-              <input type="checkbox" checked={task.completed} readOnly />
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                textDecoration: task.completed ? "line-through" : "none",
+                opacity: task.completed ? 0.6 : 1,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={task.completed}
+                onChange={() => toggleTask(task.id)}
+              />
               <span>{task.title}</span>
-              {task.carriedForward && <span> (Carried Forward)</span>}
-            </div>
+              {task.carriedForward && <span>(Carried Forward)</span>}
+            </label>
           </div>
         ))}
       </div>
