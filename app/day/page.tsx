@@ -42,30 +42,29 @@ export default function DayPage() {
   };
 
   return (
-    <div>
-      <div>{formattedDate}</div>
-      <h1>
+    <div className="p-8 max-w-2xl mx-auto">
+      <div className="text-gray-600 mb-4">{formattedDate}</div>
+      <h1 className="text-3xl font-bold mb-6">
         <strong>Day Plan</strong>
       </h1>
-      <div>
+      <div className="space-y-3">
         {tasks.map((task) => (
           <div key={task.id}>
             <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                textDecoration: task.completed ? "line-through" : "none",
-                opacity: task.completed ? 0.6 : 1,
-              }}
+              className={`flex items-center gap-2 cursor-pointer ${
+                task.completed ? "line-through opacity-60" : "opacity-100"
+              }`}
             >
               <input
                 type="checkbox"
                 checked={task.completed}
                 onChange={() => toggleTask(task.id)}
+                className="w-4 h-4 cursor-pointer"
               />
-              <span>{task.title}</span>
-              {task.carriedForward && <span>(Carried Forward)</span>}
+              <span className="text-lg">{task.title}</span>
+              {task.carriedForward && (
+                <span className="text-sm text-blue-600">(Carried Forward)</span>
+              )}
             </label>
           </div>
         ))}
