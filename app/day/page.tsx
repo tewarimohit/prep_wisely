@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Task } from "@/types/microplan";
+import TaskTitleSchema from "@/lib/contracts";
+import { error, log } from "console";
 
 export default function DayPage() {
   const today = new Date();
@@ -12,7 +14,10 @@ export default function DayPage() {
     day: "numeric",
   });
 
-  const [tasks, setTasks] = useState<Task[]>([
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [taskError, setTaskError] = useState<string | null>(null);
+
+  const [tasks, setTasks] = useState([
     {
       id: "1",
       title: "Complete project planning",
@@ -41,12 +46,56 @@ export default function DayPage() {
     );
   };
 
+  const addTask = () => {
+    const result = TaskTitleSchema.safeParse(newTaskTitle);
+    console.log("result", result);
+
+    if (!result.success) {
+      setTaskError(result.error.issues[0].message);
+      return;
+    }
+    setTaskError(null); // clear prev state
+    const title = result.data; // already trimme
+
+    setTasks((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        title,
+        completed: false,
+        carriedForward: false,
+      },
+    ]);
+
+    setNewTaskTitle("");
+  };
+
   return (
     <div className="p-8 max-w-2xl mx-auto">
       <div className="text-gray-600 mb-4">{formattedDate}</div>
       <h1 className="text-3xl font-bold mb-6">
         <strong>Day Plan</strong>
       </h1>
+      <div className="flex gap-2 mb-6">
+        <input
+          type="text"
+          value={newTaskTitle}
+          onChange={(e) => {
+            setNewTaskTitle(e.target.value);
+            if (taskError) {
+              setTaskError(null);
+            }
+          }}
+          placeholder="Add a new task"
+          className="border px-3 py-2 flex-1"
+        />
+        <button onClick={addTask} className="border px-4 py-2">
+          Add Task
+        </button>
+      </div>
+      {taskError && (
+        <div className="text-sm mb-4 text-red-600">{taskError}</div>
+      )}
       <div className="space-y-3">
         {tasks.map((task) => (
           <div key={task.id}>
