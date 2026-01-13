@@ -16,6 +16,9 @@ export default function DayPage() {
 
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [taskError, setTaskError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
 
   const [tasks, setTasks] = useState([
     {
@@ -70,6 +73,31 @@ export default function DayPage() {
     setNewTaskTitle("");
   };
 
+  const deleteTask = (id: string) => {
+    setTasks((prev) => prev.filter((task) => task.id !== id));
+  };
+
+  const startEditing = (task: Task) => {
+    setEditingTaskId(task.id);
+    setEditingTitle(task.title);
+  };
+
+  const saveEdit = (id: string) => {
+    const result = TaskTitleSchema.safeParse(editingTitle);
+    if (!result.success) {
+      setEditError(result.error.issues[0].message);
+      return;
+    }
+    const title = result.data; // trimmed + valid
+
+    setTasks((prev) =>
+      prev.map((task) => (task.id === id ? { ...task, title } : task))
+    );
+    setEditError(null);
+    setEditingTaskId(null); // done editing
+    setEditingTitle(""); // clear input
+  };
+
   return (
     <div className="p-8 max-w-2xl mx-auto">
       <div className="text-gray-600 mb-4">{formattedDate}</div>
@@ -98,7 +126,7 @@ export default function DayPage() {
       )}
       <div className="space-y-3">
         {tasks.map((task) => (
-          <div key={task.id}>
+          <div className="flex items-center gap-2" key={task.id}>
             <label
               className={`flex items-center gap-2 cursor-pointer ${
                 task.completed ? "line-through opacity-60" : "opacity-100"
@@ -110,11 +138,47 @@ export default function DayPage() {
                 onChange={() => toggleTask(task.id)}
                 className="w-4 h-4 cursor-pointer"
               />
-              <span className="text-lg">{task.title}</span>
+              {editingTaskId === task.id ? (
+                <div className="flex flex-col">
+                  <input
+                    type="text"
+                    value={editingTitle}
+                    onChange={(e) => {
+                      setEditingTitle(e.target.value);
+                      if (editError) setEditError(null);
+                    }}
+                    onBlur={() => saveEdit(task.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault(); // avoid accidental form submit
+                        saveEdit(task.id);
+                      }
+                    }}
+                    autoFocus
+                    className="border px-2 py-1 text-lg"
+                  />
+                  {editError && (
+                    <span className="text-sm text-red-600">{editError}</span>
+                  )}
+                </div>
+              ) : (
+                <span
+                  className="text-lg cursor-pointer"
+                  onDoubleClick={() => startEditing(task)}
+                >
+                  {task.title}
+                </span>
+              )}
               {task.carriedForward && (
                 <span className="text-sm text-blue-600">(Carried Forward)</span>
               )}
             </label>
+            <button
+              onClick={() => deleteTask(task.id)}
+              className="text-sm text-red-600"
+            >
+              Delete
+            </button>
           </div>
         ))}
       </div>
