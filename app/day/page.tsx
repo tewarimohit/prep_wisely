@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Task } from "@/types/microplan";
 import TaskTitleSchema from "@/lib/contracts";
-import { error, log } from "console";
+import formatDate from "@/lib/utils";
 
 export default function DayPage() {
   const today = new Date();
@@ -14,39 +14,56 @@ export default function DayPage() {
     day: "numeric",
   });
 
+  const getNextDate = (dateStr: string): string => {
+    const [dd, mm, yyyy] = dateStr.split("/").map(Number);
+    const date = new Date(yyyy, mm - 1, dd + 1);
+    return formatDate(date);
+  };
+
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [taskError, setTaskError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [currentDate, setCurrentDate] = useState<string>(
+    formatDate(new Date())
+  );
+  const [viewedDate, setViewedDate] = useState<"today" | "next">("today");
 
-  const [tasks, setTasks] = useState([
-    {
-      id: "1",
-      title: "Complete project planning",
-      completed: true,
-      carriedForward: false,
-    },
-    {
-      id: "2",
-      title: "Review documentation",
-      completed: true,
-      carriedForward: false,
-    },
-    {
-      id: "3",
-      title: "Prepare presentation slides",
-      completed: false,
-      carriedForward: true,
-    },
-  ]);
+  type TasksByDate = Record<string, Task[]>;
+
+  const [tasksByDate, setTasksByDate] = useState<TasksByDate>({
+    [currentDate]: [
+      {
+        id: "1",
+        title: "Complete project planning",
+        completed: true,
+        carriedForward: false,
+      },
+      {
+        id: "2",
+        title: "Prepare presentation slides",
+        completed: false,
+        carriedForward: false,
+      },
+    ],
+  });
+
+  const nextDate = getNextDate(currentDate);
+
+  const todayTasks = tasksByDate[currentDate] ?? [];
+  const nextDayTasks = tasksByDate[nextDate] ?? [];
+
+  const activeDate = viewedDate === "today" ? currentDate : nextDate;
+  const activeTasks = tasksByDate[activeDate] ?? [];
 
   const toggleTask = (id: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
+    setTasksByDate((prev) => ({
+      ...prev,
+      [currentDate]: prev[currentDate].map((task) =>
         task.id === id ? { ...task, completed: !task.completed } : task
-      )
-    );
+      ),
+    }));
   };
 
   const addTask = () => {
@@ -60,21 +77,27 @@ export default function DayPage() {
     setTaskError(null); // clear prev state
     const title = result.data; // already trimme
 
-    setTasks((prev) => [
+    setTasksByDate((prev) => ({
       ...prev,
-      {
-        id: crypto.randomUUID(),
-        title,
-        completed: false,
-        carriedForward: false,
-      },
-    ]);
+      [currentDate]: [
+        ...(prev[currentDate] ?? []),
+        {
+          id: crypto.randomUUID(),
+          title,
+          completed: false,
+          carriedForward: false,
+        },
+      ],
+    }));
 
     setNewTaskTitle("");
   };
 
   const deleteTask = (id: string) => {
-    setTasks((prev) => prev.filter((task) => task.id !== id));
+    setTasksByDate((prev) => ({
+      ...prev,
+      [currentDate]: prev[currentDate].filter((task) => task.id !== id),
+    }));
   };
 
   const startEditing = (task: Task) => {
@@ -90,12 +113,37 @@ export default function DayPage() {
     }
     const title = result.data; // trimmed + valid
 
-    setTasks((prev) =>
-      prev.map((task) => (task.id === id ? { ...task, title } : task))
-    );
+    setTasksByDate((prev) => ({
+      ...prev,
+      [currentDate]: prev[currentDate].map((task) =>
+        task.id === id ? { ...task, title } : task
+      ),
+    }));
     setEditError(null);
     setEditingTaskId(null); // done editing
     setEditingTitle(""); // clear input
+  };
+
+  const carryForwardTasks = () => {
+    setTasksByDate((prev) => {
+      const todayTasks = prev[currentDate] ?? [];
+
+      // 1. pick only incomplete tasks
+      const incompleteTasks = todayTasks.filter((task) => !task.completed);
+
+      // 2. clone them for next day
+      const carriedTasks = incompleteTasks.map((task) => ({
+        ...task,
+        id: crypto.randomUUID(), // new identity
+        carriedForward: true,
+        completed: false,
+      }));
+
+      return {
+        ...prev,
+        [nextDate]: [...(prev[nextDate] ?? []), ...carriedTasks],
+      };
+    });
   };
 
   return (
@@ -124,8 +172,23 @@ export default function DayPage() {
       {taskError && (
         <div className="text-sm mb-4 text-red-600">{taskError}</div>
       )}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setViewedDate("today")}
+          className="border px-3 py-1"
+        >
+          Today
+        </button>
+
+        <button
+          onClick={() => setViewedDate("next")}
+          className="border px-3 py-1"
+        >
+          Next Day
+        </button>
+      </div>
       <div className="space-y-3">
-        {tasks.map((task) => (
+        {activeTasks.map((task) => (
           <div className="flex items-center gap-2" key={task.id}>
             <label
               className={`flex items-center gap-2 cursor-pointer ${
@@ -182,6 +245,9 @@ export default function DayPage() {
           </div>
         ))}
       </div>
+      <button onClick={carryForwardTasks} className="border px-4 py-2 mt-6">
+        Move to Next Day
+      </button>
     </div>
   );
 }
