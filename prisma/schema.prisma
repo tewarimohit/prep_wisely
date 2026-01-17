@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      Role     @default(ASPIRANT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts  Account[]
+  sessions  Session[]
+
+  plans     Plan[]
+  mcqSessions MCQSession[]
+  mcqResponses MCQResponse[]
+  weakSnapshots WeakAreaSnapshot[]
+  answers   AnswerSubmission[]
+  feedbacks FeedbackEntry[]
+}
+
+model Plan {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id])
+  userId    String
+  date      DateTime  // store as date-only in UI
+  title     String
+  items     PlanItem[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId, date], map: "plan_user_date_idx")
+}
+
+model PlanItem {
+  id        String   @id @default(cuid())
+  plan      Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planId    String
+  text      String
+  status    PlanStatus @default(TODO)
+  dueTime   DateTime?
+  tags      String[]  // text tags
+  order     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([planId, order], map: "plan_item_order_idx")
+}
+
+model Topic {
+  id       String   @id @default(cuid())
+  name     String
+  parentId String?
+  parent   Topic?   @relation("TopicToTopic", fields: [parentId], references: [id])
+  children Topic[]  @relation("TopicToTopic")
+  examType String   @default("UPSC")
+  createdAt DateTime @default(now())
+  mcqs      MCQ[]   @relation("MCQTopics")
+  weakSnapshots WeakAreaSnapshot[]
+}
+
+model MCQ {
+  id           String   @id @default(cuid())
+  stem         String
+  options      String[] // length 4 enforced in app
+  answerIndex  Int
+  explanation  String?
+  topics       Topic[]  @relation("MCQTopics")
+  createdAt    DateTime @default(now())
+  responses    MCQResponse[]
+}
+
+model MCQSession {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  mode      String   // e.g., "practice", "timed"
+  createdAt DateTime @default(now())
+  responses MCQResponse[]
+}
+
+model MCQResponse {
+  id         String   @id @default(cuid())
+  session    MCQSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId  String
+  mcq        MCQ      @relation(fields: [mcqId], references: [id])
+  mcqId      String
+  choice     Int
+  correct    Boolean
+  timeMs     Int
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  createdAt  DateTime @default(now())
+
+  @@index([userId, mcqId], map: "response_user_mcq_idx")
+}
+
+model WeakAreaSnapshot {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  topic     Topic    @relation(fields: [topicId], references: [id])
+  topicId   String
+  score     Float    // rolling accuracy
+  attempts  Int
+  lastSeenAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId, topicId], map: "weak_user_topic_idx")
+}
+
+model Rubric {
+  id        String   @id @default(cuid())
+  name      String
+  criteria  Json     // array of {name, weight, guidance}
+  createdAt DateTime @default(now())
+  submissions AnswerSubmission[]
+}
+
+model AnswerSubmission {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  imageUrl    String
+  ocrText     String?
+  rubric      Rubric?  @relation(fields: [rubricId], references: [id])
+  rubricId    String?
+  status      SubmissionStatus @default(PENDING_OCR)
+  score       Float?
+  feedback    Json?    // structured suggestions
+  reviewedBy  String?  // could relate to User later
+  reviewedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FeedbackEntry {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  date      DateTime
+  mood      String?
+  blockers  String?
+  note      String?
+  coachTip  String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, date], map: "feedback_user_date_idx")
+}
+
+enum Role {
+  ASPIRANT
+  REVIEWER
+  ADMIN
+}
+
+enum PlanStatus {
+  TODO
+  DOING
+  DONE
+}
+
+enum SubmissionStatus {
+  PENDING_OCR
+  PENDING_EVAL
+  COMPLETED
+  ERROR
+}
+
+// NextAuth models (if using Prisma adapter)
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
