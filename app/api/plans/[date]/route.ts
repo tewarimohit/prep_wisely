@@ -4,11 +4,11 @@ import { UpsertPlanSchema } from "@/lib/contracts";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { date: string } }
+  { params }: { params: Promise<{ date: string }> }
 ) {
   try {
-    // Parse date from route params
-    const dateParam = params.date;
+    // Parse date from route params (Next.js 15+ requires awaiting params)
+    const { date: dateParam } = await params;
 
     // Validate date format (YYYY-MM-DD)
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -29,20 +29,11 @@ export async function GET(
       );
     }
 
-    // Convert date string to Date object (start of day in UTC)
-    const planDate = new Date(dateParam + "T00:00:00.000Z");
-    const startOfDay = new Date(planDate);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
-
     // Normalize date for exact match (unique constraint ensures no duplicates)
+    const planDate = new Date(dateParam + "T00:00:00.000Z");
     const normalizedDate = new Date(planDate);
     normalizedDate.setUTCHours(0, 0, 0, 0);
 
-    // Fetch Plan for user + date with ordered PlanItems
-    // Using findFirst with exact date match (unique constraint prevents duplicates)
     const plan = await prisma.plan.findFirst({
       where: {
         userId,
@@ -57,15 +48,8 @@ export async function GET(
       },
     });
 
-    // Return null if no plan exists
-    if (!plan) {
-      return NextResponse.json(null, { status: 200 });
-    }
-
-    // Guarantee response includes ordered PlanItems (always present due to include)
     return NextResponse.json(plan, { status: 200 });
   } catch (error) {
-    console.error("Error fetching plan:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -75,11 +59,11 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { date: string } }
+  { params }: { params: Promise<{ date: string }> }
 ) {
   try {
-    // Parse date from route params
-    const dateParam = params.date;
+    // Parse date from route params (Next.js 15+ requires awaiting params)
+    const { date: dateParam } = await params;
 
     // Validate date format (YYYY-MM-DD)
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -204,15 +188,8 @@ export async function POST(
       }
     );
 
-    // Ensure response always includes PlanItems ordered correctly
-    if (!plan.items || plan.items.length === 0) {
-      plan.items = [];
-    }
-
     return NextResponse.json(plan, { status: 200 });
   } catch (error: any) {
-    console.error("Error upserting plan:", error);
-
     // Handle unique constraint violation (duplicate plan)
     if (error.code === "P2002" || error.meta?.target?.includes("userId_date")) {
       return NextResponse.json(
