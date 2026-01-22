@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Task } from "@/types/microplan";
 import TaskTitleSchema from "@/lib/contracts";
 import formatDate from "@/lib/utils";
+
+// TODO: Replace with auth context userId
+const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
 
 export default function DayPage() {
   const today = new Date();
@@ -29,25 +32,131 @@ export default function DayPage() {
     formatDate(new Date())
   );
   const [viewedDate, setViewedDate] = useState<"today" | "next">("today");
+  const [isLoading, setIsLoading] = useState(true);
 
   type TasksByDate = Record<string, Task[]>;
 
-  const [tasksByDate, setTasksByDate] = useState<TasksByDate>({
-    [currentDate]: [
-      {
-        id: "1",
-        title: "Complete project planning",
-        completed: true,
+  const [tasksByDate, setTasksByDate] = useState<TasksByDate>({});
+
+  // Convert DD/MM/YYYY to YYYY-MM-DD for API
+  const convertDateToApiFormat = (dateStr: string): string => {
+    const [dd, mm, yyyy] = dateStr.split("/").map(Number);
+    return `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(
+      2,
+      "0"
+    )}`;
+  };
+
+  // Fetch plan from backend
+  const fetchPlan = async (dateStr: string) => {
+    try {
+      setIsLoading(true);
+      const apiDate = convertDateToApiFormat(dateStr);
+
+      // TODO: Get userId from auth context
+      const userId = TEST_USER_ID;
+
+      const response = await fetch(`/api/plans/${apiDate}?userId=${userId}`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch plan: ${response.status}`);
+      }
+
+      const plan = await response.json();
+
+      // If response is null, initialize empty plan state
+      if (plan === null) {
+        setTasksByDate((prev) => ({
+          ...prev,
+          [dateStr]: [],
+        }));
+        return;
+      }
+
+      // Map PlanItems to Tasks
+      const tasks: Task[] = (plan.items || []).map((item: any) => ({
+        id: item.id,
+        title: item.text,
+        completed: item.status === "DONE",
         carriedForward: false,
-      },
-      {
-        id: "2",
-        title: "Prepare presentation slides",
-        completed: false,
+      }));
+
+      setTasksByDate((prev) => ({
+        ...prev,
+        [dateStr]: tasks,
+      }));
+    } catch (error) {
+      console.error("Error fetching plan:", error);
+      // Initialize empty plan on error
+      setTasksByDate((prev) => ({
+        ...prev,
+        [dateStr]: [],
+      }));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Save plan to backend (server is source of truth)
+  const savePlan = async (dateStr: string, tasks: Task[]) => {
+    try {
+      const apiDate = convertDateToApiFormat(dateStr);
+      const userId = TEST_USER_ID;
+
+      // Convert Tasks to PlanItems format
+      const items = tasks.map((task, index) => ({
+        text: task.title,
+        status: task.completed ? "DONE" : "TODO",
+        order: index,
+        tags: [],
+        dueTime: null,
+      }));
+
+      const payload = {
+        title: "Daily Plan", // TODO: Make title editable
+        items,
+      };
+
+      const response = await fetch(`/api/plans/${apiDate}?userId=${userId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save plan: ${response.status}`);
+      }
+
+      const plan = await response.json();
+
+      // Update UI state from API response (server = source of truth)
+      const updatedTasks: Task[] = (plan.items || []).map((item: any) => ({
+        id: item.id,
+        title: item.text,
+        completed: item.status === "DONE",
         carriedForward: false,
-      },
-    ],
-  });
+      }));
+
+      setTasksByDate((prev) => ({
+        ...prev,
+        [dateStr]: updatedTasks,
+      }));
+    } catch (error) {
+      console.error("Error saving plan:", error);
+      // Re-fetch on error to sync with server
+      fetchPlan(dateStr);
+    }
+  };
+
+  // Fetch plan on mount and when activeDate changes
+  useEffect(() => {
+    const activeDate =
+      viewedDate === "today" ? currentDate : getNextDate(currentDate);
+    fetchPlan(activeDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate, viewedDate]);
 
   const nextDate = getNextDate(currentDate);
 
@@ -57,47 +166,40 @@ export default function DayPage() {
   const activeDate = viewedDate === "today" ? currentDate : nextDate;
   const activeTasks = tasksByDate[activeDate] ?? [];
 
-  const toggleTask = (id: string) => {
-    setTasksByDate((prev) => ({
-      ...prev,
-      [currentDate]: prev[currentDate].map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
-      ),
-    }));
+  const toggleTask = async (id: string) => {
+    const updatedTasks = (tasksByDate[activeDate] ?? []).map((task) =>
+      task.id === id ? { ...task, completed: !task.completed } : task
+    );
+    await savePlan(activeDate, updatedTasks);
   };
 
-  const addTask = () => {
+  const addTask = async () => {
     const result = TaskTitleSchema.safeParse(newTaskTitle);
-    console.log("result", result);
 
     if (!result.success) {
       setTaskError(result.error.issues[0].message);
       return;
     }
-    setTaskError(null); // clear prev state
-    const title = result.data; // already trimme
+    setTaskError(null);
+    const title = result.data;
 
-    setTasksByDate((prev) => ({
-      ...prev,
-      [currentDate]: [
-        ...(prev[currentDate] ?? []),
-        {
-          id: crypto.randomUUID(),
-          title,
-          completed: false,
-          carriedForward: false,
-        },
-      ],
-    }));
+    const newTask: Task = {
+      id: crypto.randomUUID(), // Temporary ID, will be replaced by server
+      title,
+      completed: false,
+      carriedForward: false,
+    };
 
+    const updatedTasks = [...(tasksByDate[activeDate] ?? []), newTask];
+    await savePlan(activeDate, updatedTasks);
     setNewTaskTitle("");
   };
 
-  const deleteTask = (id: string) => {
-    setTasksByDate((prev) => ({
-      ...prev,
-      [currentDate]: prev[currentDate].filter((task) => task.id !== id),
-    }));
+  const deleteTask = async (id: string) => {
+    const updatedTasks = (tasksByDate[activeDate] ?? []).filter(
+      (task) => task.id !== id
+    );
+    await savePlan(activeDate, updatedTasks);
   };
 
   const startEditing = (task: Task) => {
@@ -105,45 +207,41 @@ export default function DayPage() {
     setEditingTitle(task.title);
   };
 
-  const saveEdit = (id: string) => {
+  const saveEdit = async (id: string) => {
     const result = TaskTitleSchema.safeParse(editingTitle);
     if (!result.success) {
       setEditError(result.error.issues[0].message);
       return;
     }
-    const title = result.data; // trimmed + valid
+    const title = result.data;
 
-    setTasksByDate((prev) => ({
-      ...prev,
-      [currentDate]: prev[currentDate].map((task) =>
-        task.id === id ? { ...task, title } : task
-      ),
-    }));
+    const updatedTasks = (tasksByDate[activeDate] ?? []).map((task) =>
+      task.id === id ? { ...task, title } : task
+    );
+
+    await savePlan(activeDate, updatedTasks);
     setEditError(null);
-    setEditingTaskId(null); // done editing
-    setEditingTitle(""); // clear input
+    setEditingTaskId(null);
+    setEditingTitle("");
   };
 
-  const carryForwardTasks = () => {
-    setTasksByDate((prev) => {
-      const todayTasks = prev[currentDate] ?? [];
+  const carryForwardTasks = async () => {
+    const todayTasks = tasksByDate[currentDate] ?? [];
 
-      // 1. pick only incomplete tasks
-      const incompleteTasks = todayTasks.filter((task) => !task.completed);
+    // 1. pick only incomplete tasks
+    const incompleteTasks = todayTasks.filter((task) => !task.completed);
 
-      // 2. clone them for next day
-      const carriedTasks = incompleteTasks.map((task) => ({
-        ...task,
-        id: crypto.randomUUID(), // new identity
-        carriedForward: true,
-        completed: false,
-      }));
+    // 2. clone them for next day
+    const carriedTasks = incompleteTasks.map((task) => ({
+      ...task,
+      id: crypto.randomUUID(), // Temporary ID, will be replaced by server
+      carriedForward: true,
+      completed: false,
+    }));
 
-      return {
-        ...prev,
-        [nextDate]: [...(prev[nextDate] ?? []), ...carriedTasks],
-      };
-    });
+    // Save next day plan with carried forward tasks
+    const nextDayTasks = [...(tasksByDate[nextDate] ?? []), ...carriedTasks];
+    await savePlan(nextDate, nextDayTasks);
   };
 
   return (
@@ -152,6 +250,7 @@ export default function DayPage() {
       <h1 className="text-3xl font-bold mb-6">
         <strong>Day Plan</strong>
       </h1>
+      {isLoading && <div className="text-gray-500 mb-4">Loading plan...</div>}
       <div className="flex gap-2 mb-6">
         <input
           type="text"
