@@ -33,6 +33,7 @@ export default function DayPage() {
   );
   const [viewedDate, setViewedDate] = useState<"today" | "next">("today");
   const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   type TasksByDate = Record<string, Task[]>;
 
@@ -51,6 +52,7 @@ export default function DayPage() {
   const fetchPlan = async (dateStr: string) => {
     try {
       setIsLoading(true);
+      setApiError(null);
       const apiDate = convertDateToApiFormat(dateStr);
 
       // TODO: Get userId from auth context
@@ -86,7 +88,7 @@ export default function DayPage() {
         [dateStr]: tasks,
       }));
     } catch (error) {
-      console.error("Error fetching plan:", error);
+      setApiError("Failed to load plan. Please refresh the page.");
       // Initialize empty plan on error
       setTasksByDate((prev) => ({
         ...prev,
@@ -100,6 +102,7 @@ export default function DayPage() {
   // Save plan to backend (server is source of truth)
   const savePlan = async (dateStr: string, tasks: Task[]) => {
     try {
+      setApiError(null);
       const apiDate = convertDateToApiFormat(dateStr);
       const userId = TEST_USER_ID;
 
@@ -126,7 +129,10 @@ export default function DayPage() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save plan: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || `Failed to save plan: ${response.status}`
+        );
       }
 
       const plan = await response.json();
@@ -143,8 +149,8 @@ export default function DayPage() {
         ...prev,
         [dateStr]: updatedTasks,
       }));
-    } catch (error) {
-      console.error("Error saving plan:", error);
+    } catch (error: any) {
+      setApiError(error.message || "Failed to save plan. Please try again.");
       // Re-fetch on error to sync with server
       fetchPlan(dateStr);
     }
@@ -251,6 +257,11 @@ export default function DayPage() {
         <strong>Day Plan</strong>
       </h1>
       {isLoading && <div className="text-gray-500 mb-4">Loading plan...</div>}
+      {apiError && (
+        <div className="text-red-600 mb-4 bg-red-50 border border-red-200 px-4 py-2 rounded">
+          {apiError}
+        </div>
+      )}
       <div className="flex gap-2 mb-6">
         <input
           type="text"

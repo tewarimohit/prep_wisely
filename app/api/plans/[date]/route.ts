@@ -7,6 +7,9 @@ export async function GET(
   { params }: { params: Promise<{ date: string }> }
 ) {
   try {
+    // TEMPORARY: Testing error handling - force 500 error
+    // return NextResponse.json({ error: "Test server error" }, { status: 500 });
+
     // Parse date from route params (Next.js 15+ requires awaiting params)
     const { date: dateParam } = await params;
 
