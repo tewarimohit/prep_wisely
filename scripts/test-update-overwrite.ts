@@ -59,7 +59,9 @@ async function testUpdateOverwrite() {
 
     if (!createResponse.ok) {
       const errorText = await createResponse.text();
-      throw new Error(`Failed to create plan: ${createResponse.status} - ${errorText}`);
+      throw new Error(
+        `Failed to create plan: ${createResponse.status} - ${errorText}`
+      );
     }
 
     const createdPlan = await createResponse.json();
@@ -107,7 +109,9 @@ async function testUpdateOverwrite() {
 
     if (!firstUpdateResponse.ok) {
       const errorText = await firstUpdateResponse.text();
-      throw new Error(`Failed to update plan: ${firstUpdateResponse.status} - ${errorText}`);
+      throw new Error(
+        `Failed to update plan: ${firstUpdateResponse.status} - ${errorText}`
+      );
     }
 
     const planAfterFirstUpdate = await firstUpdateResponse.json();
@@ -140,7 +144,9 @@ async function testUpdateOverwrite() {
       initialItemIds.includes(id)
     );
     if (oldItemsStillExist) {
-      throw new Error("Old items still exist! Items were appended, not replaced.");
+      throw new Error(
+        "Old items still exist! Items were appended, not replaced."
+      );
     }
     console.log("   ✅ Old items replaced (new IDs)\n");
 
@@ -217,11 +223,15 @@ async function testUpdateOverwrite() {
 
     if (!secondUpdateResponse.ok) {
       const errorText = await secondUpdateResponse.text();
-      throw new Error(`Failed to update plan: ${secondUpdateResponse.status} - ${errorText}`);
+      throw new Error(
+        `Failed to update plan: ${secondUpdateResponse.status} - ${errorText}`
+      );
     }
 
     const planAfterSecondUpdate = await secondUpdateResponse.json();
-    const secondUpdateItemIds = planAfterSecondUpdate.items.map((i: any) => i.id);
+    const secondUpdateItemIds = planAfterSecondUpdate.items.map(
+      (i: any) => i.id
+    );
     const secondUpdateItemCount = planAfterSecondUpdate.items.length;
 
     console.log("✅ Second update completed!");
@@ -264,7 +274,8 @@ async function testUpdateOverwrite() {
         date: {
           gte: new Date(TEST_DATE + "T00:00:00.000Z"),
           lt: new Date(
-            new Date(TEST_DATE + "T00:00:00.000Z").getTime() + 24 * 60 * 60 * 1000
+            new Date(TEST_DATE + "T00:00:00.000Z").getTime() +
+              24 * 60 * 60 * 1000
           ),
         },
       },
@@ -272,7 +283,9 @@ async function testUpdateOverwrite() {
 
     if (allPlans.length > 1) {
       throw new Error(
-        `Found ${allPlans.length} plans! Expected only 1. Plan IDs: ${allPlans.map((p) => p.id).join(", ")}`
+        `Found ${allPlans.length} plans! Expected only 1. Plan IDs: ${allPlans
+          .map((p) => p.id)
+          .join(", ")}`
       );
     }
 
@@ -323,7 +336,9 @@ async function testUpdateOverwrite() {
     const apiItemIds = secondUpdateItemIds.sort();
     if (JSON.stringify(dbItemIds) !== JSON.stringify(apiItemIds)) {
       throw new Error(
-        `Item IDs mismatch! Database: [${dbItemIds.join(", ")}], API: [${apiItemIds.join(", ")}]`
+        `Item IDs mismatch! Database: [${dbItemIds.join(
+          ", "
+        )}], API: [${apiItemIds.join(", ")}]`
       );
     }
 
@@ -331,12 +346,12 @@ async function testUpdateOverwrite() {
     console.log(`   Item IDs match: ${dbItemIds.join(", ")}\n`);
 
     // Summary
-    console.log("=" .repeat(60));
+    console.log("=".repeat(60));
     console.log("🎉 All update-overwrite tests passed!");
     console.log("✅ Only one Plan row exists");
     console.log("✅ PlanItems are replaced cleanly (not appended)");
     console.log("✅ Multiple updates work correctly");
-    console.log("=" .repeat(60));
+    console.log("=".repeat(60));
   } catch (error: any) {
     console.error("\n❌ Test failed:", error.message);
     console.error(error);

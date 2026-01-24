@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Task } from "@/types/microplan";
 import TaskTitleSchema from "@/lib/contracts";
 import formatDate from "@/lib/utils";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 
 // TODO: Replace with auth context userId
 const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
@@ -32,12 +33,7 @@ export default function DayPage() {
     formatDate(new Date())
   );
   const [viewedDate, setViewedDate] = useState<"today" | "next">("today");
-  const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
-
-  type TasksByDate = Record<string, Task[]>;
-
-  const [tasksByDate, setTasksByDate] = useState<TasksByDate>({});
 
   // Convert DD/MM/YYYY to YYYY-MM-DD for API
   const convertDateToApiFormat = (dateStr: string): string => {
@@ -48,61 +44,46 @@ export default function DayPage() {
     )}`;
   };
 
-  // Fetch plan from backend
-  const fetchPlan = async (dateStr: string) => {
-    try {
-      setIsLoading(true);
-      setApiError(null);
-      const apiDate = convertDateToApiFormat(dateStr);
+  const queryClient = useQueryClient();
 
-      // TODO: Get userId from auth context
-      const userId = TEST_USER_ID;
+  // Query key factory
+  const planQueryKey = (dateStr: string) => ["plan", dateStr] as const;
 
-      const response = await fetch(`/api/plans/${apiDate}?userId=${userId}`);
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch plan: ${response.status}`);
-      }
-
-      const plan = await response.json();
-
-      // If response is null, initialize empty plan state
-      if (plan === null) {
-        setTasksByDate((prev) => ({
-          ...prev,
-          [dateStr]: [],
-        }));
-        return;
-      }
-
-      // Map PlanItems to Tasks
-      const tasks: Task[] = (plan.items || []).map((item: any) => ({
-        id: item.id,
-        title: item.text,
-        completed: item.status === "DONE",
-        carriedForward: false,
-      }));
-
-      setTasksByDate((prev) => ({
-        ...prev,
-        [dateStr]: tasks,
-      }));
-    } catch (error) {
-      setApiError("Failed to load plan. Please refresh the page.");
-      // Initialize empty plan on error
-      setTasksByDate((prev) => ({
-        ...prev,
-        [dateStr]: [],
-      }));
-    } finally {
-      setIsLoading(false);
-    }
+  // Helper function to convert plan items to tasks
+  const planToTasks = (plan: any): Task[] => {
+    if (!plan || !plan.items) return [];
+    return plan.items.map((item: any) => ({
+      id: item.id,
+      title: item.text,
+      completed: item.status === "DONE",
+      carriedForward: false,
+    }));
   };
 
-  // Save plan to backend (server is source of truth)
-  const savePlan = async (dateStr: string, tasks: Task[]) => {
-    try {
-      setApiError(null);
+  // Fetcher function for GET /api/plans/[date]
+  const fetchPlan = async (dateStr: string) => {
+    const apiDate = convertDateToApiFormat(dateStr);
+    const userId = TEST_USER_ID;
+
+    const response = await fetch(`/api/plans/${apiDate}?userId=${userId}`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch plan: ${response.status}`);
+    }
+
+    const plan = await response.json();
+    return plan; // Returns null if no plan exists, or plan object
+  };
+
+  // Mutation function for upserting plan
+  const upsertPlanMutation = useMutation({
+    mutationFn: async ({
+      dateStr,
+      tasks,
+    }: {
+      dateStr: string;
+      tasks: Task[];
+    }) => {
       const apiDate = convertDateToApiFormat(dateStr);
       const userId = TEST_USER_ID;
 
@@ -135,48 +116,50 @@ export default function DayPage() {
         );
       }
 
-      const plan = await response.json();
-
-      // Update UI state from API response (server = source of truth)
-      const updatedTasks: Task[] = (plan.items || []).map((item: any) => ({
-        id: item.id,
-        title: item.text,
-        completed: item.status === "DONE",
-        carriedForward: false,
-      }));
-
-      setTasksByDate((prev) => ({
-        ...prev,
-        [dateStr]: updatedTasks,
-      }));
-    } catch (error: any) {
+      return await response.json();
+    },
+    onSuccess: (plan, variables) => {
+      // Update cache for ['plan', date] on success
+      queryClient.setQueryData(planQueryKey(variables.dateStr), plan);
+      // Clear error on success
+      setApiError(null);
+    },
+    onError: (error: any) => {
       setApiError(error.message || "Failed to save plan. Please try again.");
-      // Re-fetch on error to sync with server
-      fetchPlan(dateStr);
-    }
-  };
+    },
+  });
 
-  // Fetch plan on mount and when activeDate changes
-  useEffect(() => {
-    const activeDate =
-      viewedDate === "today" ? currentDate : getNextDate(currentDate);
-    fetchPlan(activeDate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDate, viewedDate]);
-
+  // Calculate active date
   const nextDate = getNextDate(currentDate);
-
-  const todayTasks = tasksByDate[currentDate] ?? [];
-  const nextDayTasks = tasksByDate[nextDate] ?? [];
-
   const activeDate = viewedDate === "today" ? currentDate : nextDate;
-  const activeTasks = tasksByDate[activeDate] ?? [];
+
+  // Use useQuery to fetch plan
+  const {
+    data: plan,
+    isLoading,
+    error: queryError,
+  } = useQuery({
+    queryKey: planQueryKey(activeDate),
+    queryFn: () => fetchPlan(activeDate),
+  });
+
+  // Handle query errors
+  useEffect(() => {
+    if (queryError) {
+      setApiError("Failed to load plan. Please refresh the page.");
+    } else {
+      setApiError(null);
+    }
+  }, [queryError]);
+
+  // Derive tasks directly from plan
+  const activeTasks = planToTasks(plan);
 
   const toggleTask = async (id: string) => {
-    const updatedTasks = (tasksByDate[activeDate] ?? []).map((task) =>
+    const updatedTasks = activeTasks.map((task) =>
       task.id === id ? { ...task, completed: !task.completed } : task
     );
-    await savePlan(activeDate, updatedTasks);
+    upsertPlanMutation.mutate({ dateStr: activeDate, tasks: updatedTasks });
   };
 
   const addTask = async () => {
@@ -196,16 +179,14 @@ export default function DayPage() {
       carriedForward: false,
     };
 
-    const updatedTasks = [...(tasksByDate[activeDate] ?? []), newTask];
-    await savePlan(activeDate, updatedTasks);
+    const updatedTasks = [...activeTasks, newTask];
+    upsertPlanMutation.mutate({ dateStr: activeDate, tasks: updatedTasks });
     setNewTaskTitle("");
   };
 
   const deleteTask = async (id: string) => {
-    const updatedTasks = (tasksByDate[activeDate] ?? []).filter(
-      (task) => task.id !== id
-    );
-    await savePlan(activeDate, updatedTasks);
+    const updatedTasks = activeTasks.filter((task) => task.id !== id);
+    upsertPlanMutation.mutate({ dateStr: activeDate, tasks: updatedTasks });
   };
 
   const startEditing = (task: Task) => {
@@ -221,18 +202,20 @@ export default function DayPage() {
     }
     const title = result.data;
 
-    const updatedTasks = (tasksByDate[activeDate] ?? []).map((task) =>
+    const updatedTasks = activeTasks.map((task) =>
       task.id === id ? { ...task, title } : task
     );
 
-    await savePlan(activeDate, updatedTasks);
+    upsertPlanMutation.mutate({ dateStr: activeDate, tasks: updatedTasks });
     setEditError(null);
     setEditingTaskId(null);
     setEditingTitle("");
   };
 
   const carryForwardTasks = async () => {
-    const todayTasks = tasksByDate[currentDate] ?? [];
+    // Get today's plan from cache
+    const todayPlan = queryClient.getQueryData(planQueryKey(currentDate));
+    const todayTasks = planToTasks(todayPlan);
 
     // 1. pick only incomplete tasks
     const incompleteTasks = todayTasks.filter((task) => !task.completed);
@@ -245,9 +228,15 @@ export default function DayPage() {
       completed: false,
     }));
 
+    // Get next day's plan from cache
+    const nextDayPlan = queryClient.getQueryData(planQueryKey(nextDate));
+    const nextDayTasks = planToTasks(nextDayPlan);
+
     // Save next day plan with carried forward tasks
-    const nextDayTasks = [...(tasksByDate[nextDate] ?? []), ...carriedTasks];
-    await savePlan(nextDate, nextDayTasks);
+    upsertPlanMutation.mutate({
+      dateStr: nextDate,
+      tasks: [...nextDayTasks, ...carriedTasks],
+    });
   };
 
   return (

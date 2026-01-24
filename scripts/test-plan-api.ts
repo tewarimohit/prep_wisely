@@ -4,8 +4,8 @@
  */
 
 const BASE_URL = process.env.API_URL || "http://localhost:3000";
-const TEST_USER_ID = process.env.TEST_USER_ID || "test-user-123";
-const TEST_DATE = "2024-01-15";
+const TEST_USER_ID = process.env.TEST_USER_ID || "cmko9jw0y0002dx23vbn4lnm2";
+const TEST_DATE = new Date().toISOString().split("T")[0]; // Today in YYYY-MM-DD
 
 async function testPlanAPI() {
   console.log("🧪 Testing POST /api/plans/[date] API\n");
@@ -66,11 +66,20 @@ async function testPlanAPI() {
     console.log(`   Plan ID: ${dataA.id}`);
     console.log(`   Title: ${dataA.title}`);
     console.log(`   Items count: ${dataA.items?.length || 0}`);
-    console.log(`   Items order: ${dataA.items?.map((i: any) => i.order).join(", ") || "none"}`);
+    console.log(
+      `   Items order: ${
+        dataA.items?.map((i: any) => i.order).join(", ") || "none"
+      }`
+    );
     console.log(`   First item: ${dataA.items?.[0]?.text || "none"}\n`);
 
     // Verify response structure
-    if (!dataA.id || !dataA.userId || !dataA.title || !Array.isArray(dataA.items)) {
+    if (
+      !dataA.id ||
+      !dataA.userId ||
+      !dataA.title ||
+      !Array.isArray(dataA.items)
+    ) {
       console.error("❌ Invalid response structure:", dataA);
       return;
     }
@@ -83,7 +92,11 @@ async function testPlanAPI() {
     // Verify items are ordered correctly
     const orders = dataA.items.map((i: any) => i.order);
     if (JSON.stringify(orders) !== JSON.stringify([0, 1, 2])) {
-      console.error(`❌ Items not ordered correctly. Expected [0,1,2], got [${orders.join(",")}]`);
+      console.error(
+        `❌ Items not ordered correctly. Expected [0,1,2], got [${orders.join(
+          ","
+        )}]`
+      );
       return;
     }
 
@@ -137,46 +150,66 @@ async function testPlanAPI() {
     console.log(`   Plan ID: ${dataB.id}`);
     console.log(`   Title: ${dataB.title}`);
     console.log(`   Items count: ${dataB.items?.length || 0}`);
-    console.log(`   Items order: ${dataB.items?.map((i: any) => i.order).join(", ") || "none"}`);
+    console.log(
+      `   Items order: ${
+        dataB.items?.map((i: any) => i.order).join(", ") || "none"
+      }`
+    );
     console.log(`   First item: ${dataB.items?.[0]?.text || "none"}\n`);
 
     // Verify update worked correctly
     if (dataB.id !== dataA.id) {
-      console.error(`❌ Plan ID changed! Expected ${dataA.id}, got ${dataB.id}`);
+      console.error(
+        `❌ Plan ID changed! Expected ${dataA.id}, got ${dataB.id}`
+      );
       return;
     }
 
     if (dataB.title !== scenarioB.title) {
-      console.error(`❌ Title not updated! Expected "${scenarioB.title}", got "${dataB.title}"`);
+      console.error(
+        `❌ Title not updated! Expected "${scenarioB.title}", got "${dataB.title}"`
+      );
       return;
     }
 
     if (dataB.items.length !== 2) {
-      console.error(`❌ Expected 2 items after update, got ${dataB.items.length}`);
+      console.error(
+        `❌ Expected 2 items after update, got ${dataB.items.length}`
+      );
       return;
     }
 
     // Verify old items are gone (no "History" or "Geography" items)
     const itemTexts = dataB.items.map((i: any) => i.text);
     if (itemTexts.includes("Complete History chapter 5")) {
-      console.error("❌ Old items not deleted! Found 'Complete History chapter 5'");
+      console.error(
+        "❌ Old items not deleted! Found 'Complete History chapter 5'"
+      );
       return;
     }
 
     // Verify new items are present
     if (!itemTexts.includes("Complete Economics chapter 3")) {
-      console.error("❌ New items not created! Missing 'Complete Economics chapter 3'");
+      console.error(
+        "❌ New items not created! Missing 'Complete Economics chapter 3'"
+      );
       return;
     }
 
     // Verify items are ordered correctly
     const ordersB = dataB.items.map((i: any) => i.order);
     if (JSON.stringify(ordersB) !== JSON.stringify([0, 1])) {
-      console.error(`❌ Items not ordered correctly. Expected [0,1], got [${ordersB.join(",")}]`);
+      console.error(
+        `❌ Items not ordered correctly. Expected [0,1], got [${ordersB.join(
+          ","
+        )}]`
+      );
       return;
     }
 
-    console.log("✅ Update verified - old items deleted, new items created, ordering correct!\n");
+    console.log(
+      "✅ Update verified - old items deleted, new items created, ordering correct!\n"
+    );
 
     // Final verification: GET the plan to ensure it's persisted correctly
     console.log("🔍 Final verification: Fetching plan via GET...");
@@ -205,7 +238,9 @@ async function testPlanAPI() {
     }
 
     if (getData.items.length !== dataB.items.length) {
-      console.error(`❌ Item count mismatch. POST: ${dataB.items.length}, GET: ${getData.items.length}`);
+      console.error(
+        `❌ Item count mismatch. POST: ${dataB.items.length}, GET: ${getData.items.length}`
+      );
       return;
     }
 

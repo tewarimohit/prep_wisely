@@ -6,8 +6,8 @@
 import { prisma } from "../lib/db";
 
 const BASE_URL = process.env.API_URL || "http://localhost:3000";
-const TEST_USER_ID = process.env.TEST_USER_ID || "test-user-123";
-const TEST_DATE = "2024-01-20"; // Different date to avoid conflicts
+const TEST_USER_ID = process.env.TEST_USER_ID || "cmko9jw0y0002dx23vbn4lnm2";
+const TEST_DATE = new Date().toISOString().split("T")[0]; // Today in YYYY-MM-DD
 
 async function testFailureModes() {
   console.log("🧪 Testing POST /api/plans/[date] Failure Modes\n");
@@ -67,7 +67,9 @@ async function testFailureModes() {
     });
 
     if (planCheck) {
-      console.error("❌ Test 1 failed - Plan was created despite validation error!");
+      console.error(
+        "❌ Test 1 failed - Plan was created despite validation error!"
+      );
       console.error(`   Plan ID: ${planCheck.id}`);
       allTestsPassed = false;
     } else {
@@ -103,7 +105,9 @@ async function testFailureModes() {
     // Actually, empty items should be allowed (user might have no tasks)
     // So this test should succeed, but let's verify no partial write
     if (response.status === 200) {
-      console.log("✅ Test 2 passed - Empty items array accepted (valid use case)");
+      console.log(
+        "✅ Test 2 passed - Empty items array accepted (valid use case)"
+      );
       console.log(`   Plan ID: ${data.id}`);
       console.log(`   Items count: ${data.items?.length || 0}\n`);
 
@@ -113,7 +117,9 @@ async function testFailureModes() {
       });
       console.log("   Cleaned up test plan\n");
     } else if (response.status === 400) {
-      console.log("✅ Test 2 passed - Empty items rejected (if that's the expected behavior)");
+      console.log(
+        "✅ Test 2 passed - Empty items rejected (if that's the expected behavior)"
+      );
       console.log(`   Error: ${data.error || JSON.stringify(data)}\n`);
 
       // Verify no plan was created
@@ -125,7 +131,9 @@ async function testFailureModes() {
       });
 
       if (planCheck) {
-        console.error("❌ Test 2 failed - Plan was created despite validation error!");
+        console.error(
+          "❌ Test 2 failed - Plan was created despite validation error!"
+        );
         allTestsPassed = false;
       } else {
         console.log("✅ Test 2 - No partial write: No plan created\n");
@@ -193,7 +201,9 @@ async function testFailureModes() {
     });
 
     if (planCheck) {
-      console.error("❌ Test 3 failed - Plan was created despite validation error!");
+      console.error(
+        "❌ Test 3 failed - Plan was created despite validation error!"
+      );
       console.error(`   Plan ID: ${planCheck.id}`);
       allTestsPassed = false;
     } else {
@@ -265,9 +275,15 @@ async function testFailureModes() {
 
     if (orphanedItems.length > 0) {
       console.error(`❌ Found ${orphanedItems.length} orphaned PlanItems!`);
-      console.error("   Orphaned item IDs:", orphanedItems.map((i) => i.id));
-      console.error("   Orphaned planIds:", orphanedItems.map((i) => i.planId));
-      
+      console.error(
+        "   Orphaned item IDs:",
+        orphanedItems.map((i) => i.id)
+      );
+      console.error(
+        "   Orphaned planIds:",
+        orphanedItems.map((i) => i.planId)
+      );
+
       // Check if these are from test user
       const testUserOrphans = await prisma.planItem.findMany({
         where: {
@@ -279,10 +295,14 @@ async function testFailureModes() {
       });
 
       if (testUserOrphans.length > 0) {
-        console.error(`   ⚠️  ${testUserOrphans.length} orphaned items belong to test user`);
+        console.error(
+          `   ⚠️  ${testUserOrphans.length} orphaned items belong to test user`
+        );
         allTestsPassed = false;
       } else {
-        console.log("   ℹ️  Orphaned items belong to other users (not a test failure)");
+        console.log(
+          "   ℹ️  Orphaned items belong to other users (not a test failure)"
+        );
       }
     } else {
       console.log("✅ Test 5 passed - No orphaned PlanItems found");
@@ -294,7 +314,7 @@ async function testFailureModes() {
   }
 
   // Summary
-  console.log("=" .repeat(50));
+  console.log("=".repeat(50));
   if (allTestsPassed) {
     console.log("🎉 All failure mode tests passed!");
     console.log("✅ Validation errors work correctly");
