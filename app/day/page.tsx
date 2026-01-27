@@ -4,10 +4,10 @@ import { useState, useEffect } from "react";
 import { Task } from "@/types/microplan";
 import TaskTitleSchema from "@/lib/contracts";
 import formatDate from "@/lib/utils";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePlan, planQueryKey } from "@/hooks/usePlan";
+import { usePlanMutation } from "@/hooks/usePlanMutation";
+import { planToTasks } from "@/lib/transformers";
 
 export default function DayPage() {
   const today = new Date();
@@ -35,211 +35,18 @@ export default function DayPage() {
   const [viewedDate, setViewedDate] = useState<"today" | "next">("today");
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // Convert DD/MM/YYYY to YYYY-MM-DD for API
-  const convertDateToApiFormat = (dateStr: string): string => {
-    const [dd, mm, yyyy] = dateStr.split("/").map(Number);
-    return `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(
-      2,
-      "0"
-    )}`;
-  };
-
   const queryClient = useQueryClient();
-
-  // Query key factory
-  const planQueryKey = (dateStr: string) => ["plan", dateStr] as const;
-
-  // Helper function to convert plan items to tasks
-  const planToTasks = (plan: any): Task[] => {
-    if (!plan || !plan.items) return [];
-    return plan.items.map((item: any) => ({
-      id: item.id,
-      title: item.text,
-      completed: item.status === "DONE",
-      carriedForward: false,
-    }));
-  };
-
-  // Fetcher function for GET /api/plans/[date]
-  const fetchPlan = async (dateStr: string) => {
-    const apiDate = convertDateToApiFormat(dateStr);
-    const userId = TEST_USER_ID;
-
-    const response = await fetch(`/api/plans/${apiDate}?userId=${userId}`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch plan: ${response.status}`);
-    }
-
-    const plan = await response.json();
-    return plan; // Returns null if no plan exists, or plan object
-  };
-
-  // Mutation function for upserting plan
-  const upsertPlanMutation = useMutation({
-    mutationFn: async ({
-      dateStr,
-      tasks,
-    }: {
-      dateStr: string;
-      tasks: Task[];
-    }) => {
-      const apiDate = convertDateToApiFormat(dateStr);
-      const userId = TEST_USER_ID;
-
-      // Convert Tasks to PlanItems format
-      const items = tasks.map((task, index) => ({
-        text: task.title,
-        status: task.completed ? "DONE" : "TODO",
-        order: index,
-        tags: [],
-        dueTime: null,
-      }));
-
-      const payload = {
-        title: "Daily Plan", // TODO: Make title editable
-        items,
-      };
-
-      const response = await fetch(`/api/plans/${apiDate}?userId=${userId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.error || `Failed to save plan: ${response.status}`
-        );
-      }
-
-      return await response.json();
-    },
-    onMutate: async ({ dateStr, tasks }) => {
-      // Snapshot previous cache for ['plan', date]
-      const queryKey = planQueryKey(dateStr);
-      await queryClient.cancelQueries({ queryKey });
-
-      const previousPlan = queryClient.getQueryData(queryKey);
-
-      // Create optimistic plan payload
-      const apiDate = convertDateToApiFormat(dateStr);
-      const userId = TEST_USER_ID;
-      const now = new Date().toISOString();
-      const planDate = new Date(apiDate + "T00:00:00.000Z");
-      const normalizedDate = new Date(planDate);
-      normalizedDate.setUTCHours(0, 0, 0, 0);
-
-      // Convert tasks to optimistic plan items
-      const optimisticItems = tasks.map((task, index) => ({
-        id: task.id || `temp-${Date.now()}-${index}`, // Use existing ID or generate temp ID
-        text: task.title,
-        status: task.completed ? "DONE" : "TODO",
-        order: index,
-        tags: [],
-        dueTime: null,
-        createdAt: now,
-        updatedAt: now,
-      }));
-
-      // Build optimistic plan object
-      const optimisticPlan = previousPlan
-        ? {
-            // Update existing plan
-            ...(previousPlan as any),
-            title: "Daily Plan",
-            items: optimisticItems,
-            updatedAt: now,
-          }
-        : {
-            // Create new plan structure
-            id: `temp-${Date.now()}`,
-            userId,
-            date: normalizedDate.toISOString(),
-            title: "Daily Plan",
-            items: optimisticItems,
-            createdAt: now,
-            updatedAt: now,
-          };
-
-      // Update cache optimistically
-      queryClient.setQueryData(queryKey, optimisticPlan);
-
-      // Return snapshot context for rollback
-      return { previousPlan, queryKey };
-    },
-    onSuccess: (plan, variables) => {
-      // Server reconciliation: Replace optimistic update with server response
-      // Server is the final source of truth - ensures correct IDs, ordering, and data integrity
-      const queryKey = planQueryKey(variables.dateStr);
-
-      // Validate server response structure
-      if (!plan || typeof plan !== "object") {
-        console.error("Invalid server response:", plan);
-        setApiError("Received invalid response from server. Please refresh.");
-        return;
-      }
-
-      // Ensure items are ordered correctly (server should return ordered, but verify)
-      // This also ensures no duplicates - server response replaces optimistic update completely
-      const normalizedPlan = {
-        ...plan,
-        items: plan.items
-          ? [...plan.items].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
-          : [],
-      };
-
-      // Replace cache completely with server response (overwrites optimistic update)
-      // This ensures: real database IDs replace temp IDs, server ordering is preserved,
-      // no duplicate items, and server timestamps are used
-      queryClient.setQueryData(queryKey, normalizedPlan);
-
-      // Clear any error state on successful save
-      setApiError(null);
-    },
-    onError: (error: any, variables, context) => {
-      // Rollback to previous cache state from snapshot
-      try {
-        if (context) {
-          // Restore previous plan (can be null if no plan existed)
-          queryClient.setQueryData(context.queryKey, context.previousPlan);
-        }
-      } catch (rollbackError) {
-        // If rollback fails, log but don't crash - UI should still show error
-        console.error("Failed to rollback cache:", rollbackError);
-      }
-
-      // Show minimal inline error message (ensure it's always a string)
-      let errorMessage = "Failed to save plan. Please try again.";
-      if (error) {
-        if (typeof error === "string") {
-          errorMessage = error;
-        } else if (error?.message) {
-          errorMessage = String(error.message);
-        } else if (error?.toString) {
-          errorMessage = String(error.toString());
-        }
-      }
-      setApiError(errorMessage);
-    },
-  });
 
   // Calculate active date
   const nextDate = getNextDate(currentDate);
   const activeDate = viewedDate === "today" ? currentDate : nextDate;
 
-  // Use useQuery to fetch plan
+  // Use usePlan hook to fetch plan
   const {
     data: plan,
     isLoading,
     error: queryError,
-  } = useQuery({
-    queryKey: planQueryKey(activeDate),
-    queryFn: () => fetchPlan(activeDate),
-  });
+  } = usePlan(activeDate);
 
   // Handle query errors
   useEffect(() => {
@@ -249,6 +56,17 @@ export default function DayPage() {
       setApiError(null);
     }
   }, [queryError]);
+
+  // Use usePlanMutation hook for upserting plan
+  const upsertPlanMutation = usePlanMutation(
+    () => {
+      // Clear error on successful mutation
+      setApiError(null);
+    },
+    (errorMessage) => {
+      setApiError(errorMessage);
+    }
+  );
 
   // Derive tasks directly from plan
   const activeTasks = planToTasks(plan);
