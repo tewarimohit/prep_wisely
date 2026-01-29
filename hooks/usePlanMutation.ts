@@ -42,7 +42,7 @@ export function usePlanMutation(
         text: task.title,
         status: task.completed ? "DONE" : "TODO",
         order: index,
-        tags: [],
+        tags: task.carriedForward ? ["carried-forward"] : [],
         dueTime: null,
         createdAt: now,
         updatedAt: now,

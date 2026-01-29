@@ -149,20 +149,26 @@ export default function WeekPage() {
                       {formatDateDisplay(dateStr)}
                     </h2>
                     {isToday && (
-                      <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded">
+                      <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded font-medium">
                         Today
                       </span>
                     )}
                   </div>
                   {plan?.title ? (
-                    <p className="text-gray-700">{plan.title}</p>
+                    <p className="text-gray-700 font-medium">{plan.title}</p>
                   ) : (
                     <p className="text-gray-400 italic">No plan</p>
                   )}
+                  {plan?.carriedForwardTasks > 0 && (
+                    <p className="text-xs text-blue-600 font-medium mt-1.5 flex items-center gap-1">
+                      <span className="inline-block w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+                      {plan.carriedForwardTasks} task{plan.carriedForwardTasks !== 1 ? "s" : ""} carried forward
+                    </p>
+                  )}
                 </div>
-                <div className="ml-4">
+                <div className="ml-4 flex-shrink-0">
                   <span
-                    className={`px-3 py-1 rounded border text-sm font-medium ${getStatusBadgeStyle(
+                    className={`px-3 py-1.5 rounded border text-sm font-semibold ${getStatusBadgeStyle(
                       status
                     )}`}
                   >

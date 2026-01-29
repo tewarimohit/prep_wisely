@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
             id: true,
             status: true,
             order: true,
+            tags: true, // Include tags to detect carried-forward tasks
           },
           orderBy: {
             order: "asc",
@@ -100,13 +101,26 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Compute completion status for each plan
-    const plansWithStatus = plans.map((plan) => ({
-      date: plan.date,
-      title: plan.title,
-      status: computeCompletionStatus(plan.items),
-      items: plan.items,
-    }));
+    // Compute completion status and task counts for each plan
+    const plansWithStatus = plans.map((plan) => {
+      const totalTasks = plan.items.length;
+      const completedTasks = plan.items.filter(
+        (item) => item.status === "DONE"
+      ).length;
+      const carriedForwardTasks = plan.items.filter((item) =>
+        item.tags.includes("carried-forward")
+      ).length;
+
+      return {
+        date: plan.date,
+        title: plan.title,
+        status: computeCompletionStatus(plan.items),
+        totalTasks,
+        completedTasks,
+        carriedForwardTasks,
+        items: plan.items,
+      };
+    });
 
     return NextResponse.json(plansWithStatus, { status: 200 });
   } catch (error) {

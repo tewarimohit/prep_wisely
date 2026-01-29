@@ -48,6 +48,11 @@ export default function DayPage() {
       const convertedDate = convertApiDateToDisplayFormat(dateParam);
       setCurrentDate(convertedDate);
       setViewedDate("today"); // Reset to "today" view when date param changes
+    } else {
+      // Default to today if no date param
+      const todayDate = formatDate(new Date());
+      setCurrentDate(todayDate);
+      setViewedDate("today");
     }
   }, [dateParam]);
 
@@ -278,7 +283,9 @@ export default function DayPage() {
                 </span>
               )}
               {task.carriedForward && (
-                <span className="text-sm text-blue-600">(Carried Forward)</span>
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
+                  Carried Forward
+                </span>
               )}
             </label>
             <button

@@ -68,6 +68,9 @@ async function testWeekAPI() {
       console.log(`    Date: ${plan.date}`);
       console.log(`    Title: ${plan.title}`);
       console.log(`    Status: ${plan.status}`);
+      console.log(`    Total Tasks: ${plan.totalTasks}`);
+      console.log(`    Completed Tasks: ${plan.completedTasks}`);
+      console.log(`    Carried Forward Tasks: ${plan.carriedForwardTasks}`);
       console.log(`    Items: ${plan.items?.length || 0}`);
       
       // Verify required fields
@@ -85,8 +88,42 @@ async function testWeekAPI() {
           `Plan ${index + 1} has invalid status: ${plan.status}. Expected: completed, in_progress, or pending`
         );
       }
+      if (typeof plan.totalTasks !== "number") {
+        throw new Error(`Plan ${index + 1} missing totalTasks field`);
+      }
+      if (typeof plan.completedTasks !== "number") {
+        throw new Error(`Plan ${index + 1} missing completedTasks field`);
+      }
+      if (typeof plan.carriedForwardTasks !== "number") {
+        throw new Error(`Plan ${index + 1} missing carriedForwardTasks field`);
+      }
       if (!Array.isArray(plan.items)) {
         throw new Error(`Plan ${index + 1} items is not an array`);
+      }
+
+      // Verify counts match items
+      if (plan.totalTasks !== plan.items.length) {
+        throw new Error(
+          `Plan ${index + 1} totalTasks mismatch: ${plan.totalTasks} !== ${plan.items.length}`
+        );
+      }
+
+      const actualCompleted = plan.items.filter(
+        (item: any) => item.status === "DONE"
+      ).length;
+      if (plan.completedTasks !== actualCompleted) {
+        throw new Error(
+          `Plan ${index + 1} completedTasks mismatch: ${plan.completedTasks} !== ${actualCompleted}`
+        );
+      }
+
+      const actualCarriedForward = plan.items.filter((item: any) =>
+        item.tags?.includes("carried-forward")
+      ).length;
+      if (plan.carriedForwardTasks !== actualCarriedForward) {
+        throw new Error(
+          `Plan ${index + 1} carriedForwardTasks mismatch: ${plan.carriedForwardTasks} !== ${actualCarriedForward}`
+        );
       }
 
       // Verify completion status matches items
@@ -120,11 +157,14 @@ async function testWeekAPI() {
         if (item.order === undefined) {
           throw new Error(`Plan ${index + 1}, Item ${itemIndex + 1} missing order`);
         }
+        if (!Array.isArray(item.tags)) {
+          throw new Error(`Plan ${index + 1}, Item ${itemIndex + 1} tags is not an array`);
+        }
       });
 
-      // Verify items don't have extra fields (only id, status, order)
+      // Verify items don't have extra fields (only id, status, order, tags)
       const itemKeys = Object.keys(plan.items[0] || {});
-      const allowedKeys = ["id", "status", "order"];
+      const allowedKeys = ["id", "status", "order", "tags"];
       const extraKeys = itemKeys.filter((key) => !allowedKeys.includes(key));
       if (extraKeys.length > 0) {
         console.log(`    ⚠️  Warning: Item has extra fields: ${extraKeys.join(", ")}`);
@@ -205,9 +245,10 @@ async function testWeekAPI() {
     console.log("Summary:");
     console.log(`  ✅ Fetched ${plans.length} plans for week`);
     console.log("  ✅ Response structure is correct");
-    console.log("  ✅ Minimal fields returned (date, title, status, items)");
+    console.log("  ✅ Minimal fields returned (date, title, status, task counts, items)");
+    console.log("  ✅ Task counts computed correctly (totalTasks, completedTasks, carriedForwardTasks)");
     console.log("  ✅ Completion status computed correctly");
-    console.log("  ✅ Items have minimal fields (id, status, order)");
+    console.log("  ✅ Items have minimal fields (id, status, order, tags)");
     console.log("  ✅ Error handling works correctly");
   } catch (error: any) {
     console.error("\n❌ Test Failed:");

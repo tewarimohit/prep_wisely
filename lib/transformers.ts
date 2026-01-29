@@ -10,6 +10,6 @@ export function planToTasks(plan: any): Task[] {
     id: item.id,
     title: item.text,
     completed: item.status === "DONE",
-    carriedForward: false,
+    carriedForward: item.tags?.includes("carried-forward") || false,
   }));
 }
