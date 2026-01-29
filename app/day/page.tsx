@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Task } from "@/types/microplan";
 import TaskTitleSchema from "@/lib/contracts";
 import formatDate from "@/lib/utils";
@@ -9,14 +10,22 @@ import { usePlan, planQueryKey } from "@/hooks/usePlan";
 import { usePlanMutation } from "@/hooks/usePlanMutation";
 import { planToTasks } from "@/lib/transformers";
 
+/**
+ * Convert YYYY-MM-DD to DD/MM/YYYY format
+ */
+function convertApiDateToDisplayFormat(apiDate: string): string {
+  const [yyyy, mm, dd] = apiDate.split("-").map(Number);
+  return formatDate(new Date(yyyy, mm - 1, dd));
+}
+
 export default function DayPage() {
-  const today = new Date();
-  const formattedDate = today.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const searchParams = useSearchParams();
+  const dateParam = searchParams.get("date");
+
+  // Convert date param (YYYY-MM-DD) to display format (DD/MM/YYYY) or use today
+  const initialDate = dateParam
+    ? convertApiDateToDisplayFormat(dateParam)
+    : formatDate(new Date());
 
   const getNextDate = (dateStr: string): string => {
     const [dd, mm, yyyy] = dateStr.split("/").map(Number);
@@ -29,17 +38,38 @@ export default function DayPage() {
   const [editError, setEditError] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
-  const [currentDate, setCurrentDate] = useState<string>(
-    formatDate(new Date())
-  );
+  const [currentDate, setCurrentDate] = useState<string>(initialDate);
   const [viewedDate, setViewedDate] = useState<"today" | "next">("today");
   const [apiError, setApiError] = useState<string | null>(null);
+
+  // Update currentDate when date param changes
+  useEffect(() => {
+    if (dateParam) {
+      const convertedDate = convertApiDateToDisplayFormat(dateParam);
+      setCurrentDate(convertedDate);
+      setViewedDate("today"); // Reset to "today" view when date param changes
+    }
+  }, [dateParam]);
 
   const queryClient = useQueryClient();
 
   // Calculate active date
   const nextDate = getNextDate(currentDate);
   const activeDate = viewedDate === "today" ? currentDate : nextDate;
+
+  // Format the displayed date based on currentDate
+  const getFormattedDate = (dateStr: string): string => {
+    const [dd, mm, yyyy] = dateStr.split("/").map(Number);
+    const date = new Date(yyyy, mm - 1, dd);
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  const formattedDate = getFormattedDate(currentDate);
 
   // Use usePlan hook to fetch plan
   const {
