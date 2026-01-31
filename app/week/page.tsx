@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useWeekPlans } from "@/hooks/useWeekPlans";
 import { CompletionStatus } from "@/lib/completion";
+import { ErrorMessage } from "@/components/ErrorMessage";
 
 /**
  * Get Monday and Sunday of current week
@@ -102,7 +103,7 @@ export default function WeekPage() {
   const { startDate, endDate } = getWeekDates();
   const weekDays = getWeekDays(startDate);
   
-  const { data: weekData, isLoading, error } = useWeekPlans(startDate, endDate);
+  const { data: weekData, isLoading, error, refetch: refetchWeek } = useWeekPlans(startDate, endDate);
 
   // Extract plans and summary from API response
   const plans = weekData?.plans || [];
@@ -126,13 +127,14 @@ export default function WeekPage() {
       <h1 className="text-3xl font-bold mb-6">Week View</h1>
 
       {isLoading && (
-        <div className="text-gray-500 mb-4">Loading week plans...</div>
+        <div className="text-gray-500 mb-4">Loading week...</div>
       )}
 
       {error && (
-        <div className="text-red-600 mb-4 bg-red-50 border border-red-200 px-4 py-2 rounded">
-          Failed to load week plans. Please refresh the page.
-        </div>
+        <ErrorMessage
+          message="Could not load week. Retry."
+          onRetry={() => refetchWeek()}
+        />
       )}
 
       {/* Weekly Summary */}

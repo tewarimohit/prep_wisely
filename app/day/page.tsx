@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { usePlan, planQueryKey } from "@/hooks/usePlan";
 import { usePlanMutation } from "@/hooks/usePlanMutation";
 import { planToTasks } from "@/lib/transformers";
+import { ErrorMessage } from "@/components/ErrorMessage";
 
 /**
  * Convert YYYY-MM-DD to DD/MM/YYYY format
@@ -81,16 +82,13 @@ export default function DayPage() {
     data: plan,
     isLoading,
     error: queryError,
+    refetch: refetchPlan,
   } = usePlan(activeDate);
 
-  // Handle query errors
-  useEffect(() => {
-    if (queryError) {
-      setApiError("Failed to load plan. Please refresh the page.");
-    } else {
-      setApiError(null);
-    }
-  }, [queryError]);
+  // Determine if we're viewing today or a selected date
+  const todayStr = formatDate(new Date());
+  const isViewingToday = currentDate === todayStr && viewedDate === "today";
+  const isViewingSelectedDate = dateParam && !isViewingToday;
 
   // Use usePlanMutation hook for upserting plan
   const upsertPlanMutation = usePlanMutation(
@@ -102,6 +100,13 @@ export default function DayPage() {
       setApiError(errorMessage);
     }
   );
+
+  // Clear apiError when query succeeds
+  useEffect(() => {
+    if (!queryError && apiError) {
+      setApiError(null);
+    }
+  }, [queryError, apiError]);
 
   // Derive tasks directly from plan
   const activeTasks = planToTasks(plan);
@@ -192,15 +197,31 @@ export default function DayPage() {
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
-      <div className="text-gray-600 mb-4">{formattedDate}</div>
+      <div className="flex items-center gap-2 mb-4">
+        <div className="text-gray-600">{formattedDate}</div>
+        {isViewingSelectedDate && (
+          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
+            Selected Date
+          </span>
+        )}
+        {isViewingToday && (
+          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded border border-green-200">
+            Today
+          </span>
+        )}
+      </div>
       <h1 className="text-3xl font-bold mb-6">
         <strong>Day Plan</strong>
       </h1>
       {isLoading && <div className="text-gray-500 mb-4">Loading plan...</div>}
-      {apiError && (
-        <div className="text-red-600 mb-4 bg-red-50 border border-red-200 px-4 py-2 rounded">
-          {apiError}
-        </div>
+      {queryError && (
+        <ErrorMessage
+          message="Could not load plan. Retry."
+          onRetry={() => refetchPlan()}
+        />
+      )}
+      {apiError && !queryError && (
+        <ErrorMessage message={apiError} />
       )}
       <div className="flex gap-2 mb-6">
         <input
