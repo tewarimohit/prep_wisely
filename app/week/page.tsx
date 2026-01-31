@@ -102,7 +102,11 @@ export default function WeekPage() {
   const { startDate, endDate } = getWeekDates();
   const weekDays = getWeekDays(startDate);
   
-  const { data: plans, isLoading, error } = useWeekPlans(startDate, endDate);
+  const { data: weekData, isLoading, error } = useWeekPlans(startDate, endDate);
+
+  // Extract plans and summary from API response
+  const plans = weekData?.plans || [];
+  const summary = weekData?.summary || { totalTasks: 0, completedTasks: 0, completionPercentage: 0 };
 
   // Create a map of date -> plan for quick lookup
   const plansByDate = new Map<string, any>();
@@ -113,6 +117,9 @@ export default function WeekPage() {
       plansByDate.set(dateStr, plan);
     });
   }
+
+  // Check if week has any plans
+  const hasPlans = plans.length > 0;
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -125,6 +132,26 @@ export default function WeekPage() {
       {error && (
         <div className="text-red-600 mb-4 bg-red-50 border border-red-200 px-4 py-2 rounded">
           Failed to load week plans. Please refresh the page.
+        </div>
+      )}
+
+      {/* Weekly Summary */}
+      {!isLoading && !error && (
+        <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          {hasPlans ? (
+            <div className="flex items-center gap-4">
+              <div className="text-lg font-semibold text-gray-800">
+                Week completion: {summary.completionPercentage}%
+              </div>
+              <div className="text-sm text-gray-600">
+                {summary.completedTasks} / {summary.totalTasks} tasks completed
+              </div>
+            </div>
+          ) : (
+            <div className="text-gray-600 italic">
+              No plans created this week
+            </div>
+          )}
         </div>
       )}
 

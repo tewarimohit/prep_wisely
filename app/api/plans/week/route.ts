@@ -122,7 +122,31 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json(plansWithStatus, { status: 200 });
+    // Compute weekly summary
+    const weeklyTotalTasks = plansWithStatus.reduce(
+      (sum, plan) => sum + plan.totalTasks,
+      0
+    );
+    const weeklyCompletedTasks = plansWithStatus.reduce(
+      (sum, plan) => sum + plan.completedTasks,
+      0
+    );
+    const weeklyCompletionPercentage =
+      weeklyTotalTasks > 0
+        ? Math.round((weeklyCompletedTasks / weeklyTotalTasks) * 100)
+        : 0;
+
+    return NextResponse.json(
+      {
+        plans: plansWithStatus,
+        summary: {
+          totalTasks: weeklyTotalTasks,
+          completedTasks: weeklyCompletedTasks,
+          completionPercentage: weeklyCompletionPercentage,
+        },
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Error fetching week plans:", error);
     return NextResponse.json(
