@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { MCQResponseSubmitSchema, MCQResultSchema, MCQResult } from "@/lib/contracts/mcq";
+import {
+  MCQResponseSubmitSchema,
+  MCQResultSchema,
+  MCQResult,
+} from "@/lib/contracts/mcq";
 
 /**
  * POST /api/mcq/response
@@ -14,26 +18,65 @@ export async function POST(request: NextRequest) {
     // Parse and validate input
     const validated = MCQResponseSubmitSchema.parse(body);
 
-    // TODO: Implement evaluation logic
-    // 1. Fetch MCQ to get correct answer
-    // 2. Compare choice with answerIndex
-    // 3. Create MCQResponse record
-    // 4. Return result with explanation
+    // Fetch MCQ to get correct answer
+    const mcq = await prisma.mCQ.findUnique({
+      where: { id: validated.mcqId },
+      select: {
+        id: true,
+        answerIndex: true,
+        explanation: true,
+      },
+    });
 
-    // Placeholder evaluation
+    if (!mcq) {
+      return NextResponse.json(
+        { error: "MCQ not found" },
+        { status: 404 }
+      );
+    }
+
+    // Verify session exists and get userId
+    const session = await prisma.mCQSession.findUnique({
+      where: { id: validated.sessionId },
+      select: {
+        id: true,
+        userId: true,
+      },
+    });
+
+    if (!session) {
+      return NextResponse.json(
+        { error: "Session not found" },
+        { status: 404 }
+      );
+    }
+
+    // Compute correctness server-side
+    const isCorrect = validated.choice === mcq.answerIndex;
+
+    // Store MCQResponse
+    await prisma.mCQResponse.create({
+      data: {
+        sessionId: validated.sessionId,
+        mcqId: validated.mcqId,
+        choice: validated.choice,
+        correct: isCorrect,
+        timeMs: validated.timeMs,
+        userId: session.userId,
+      },
+    });
+
+    // Build result
     const result: MCQResult = {
-      correct: false,
-      explanation: null,
-      correctAnswerIndex: 0,
+      correct: isCorrect,
+      explanation: mcq.explanation,
+      correctAnswerIndex: mcq.answerIndex,
     };
 
-    return NextResponse.json(
-      {
-        ...result,
-        message: "MCQ response endpoint - not yet implemented",
-      },
-      { status: 200 }
-    );
+    // Validate result with Zod schema
+    const validatedResult = MCQResultSchema.parse(result);
+
+    return NextResponse.json(validatedResult, { status: 200 });
   } catch (error: any) {
     if (error.name === "ZodError") {
       return NextResponse.json(
@@ -41,6 +84,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    console.error("MCQ response error:", error);
     return NextResponse.json(
       { error: "Failed to process MCQ response" },
       { status: 500 }

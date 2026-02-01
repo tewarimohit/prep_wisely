@@ -2,6 +2,7 @@ import { z } from "zod";
 
 /**
  * MCQ (read-only) - represents a question fetched from the database
+ * Full schema including answerIndex (for internal use)
  */
 export const MCQSchema = z.object({
   id: z.string().cuid(),
@@ -12,6 +13,18 @@ export const MCQSchema = z.object({
   answerIndex: z.number().int().min(0).max(3, "Answer index must be 0-3"),
   explanation: z.string().optional().nullable(),
   createdAt: z.date().optional(),
+});
+
+/**
+ * MCQ (safe) - question without answerIndex for client consumption
+ */
+export const MCQSafeSchema = z.object({
+  id: z.string().cuid(),
+  stem: z.string().min(1, "Question stem cannot be empty"),
+  options: z
+    .array(z.string().min(1, "Option cannot be empty"))
+    .length(4, "Must have exactly 4 options"),
+  // answerIndex is intentionally excluded
 });
 
 /**
@@ -45,6 +58,7 @@ export const MCQPlayRequestSchema = z.object({
 
 // Type exports for TypeScript
 export type MCQ = z.infer<typeof MCQSchema>;
+export type MCQSafe = z.infer<typeof MCQSafeSchema>;
 export type MCQResponseSubmit = z.infer<typeof MCQResponseSubmitSchema>;
 export type MCQResult = z.infer<typeof MCQResultSchema>;
 export type MCQPlayRequest = z.infer<typeof MCQPlayRequestSchema>;

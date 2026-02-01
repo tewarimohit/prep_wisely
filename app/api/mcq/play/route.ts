@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { MCQPlayRequestSchema } from "@/lib/contracts/mcq";
+import { MCQPlayRequestSchema, MCQSafeSchema } from "@/lib/contracts/mcq";
 
 /**
  * GET /api/mcq/play
@@ -25,16 +25,59 @@ export async function GET(request: NextRequest) {
       limit,
     });
 
-    // TODO: Implement logic to fetch MCQs
-    // - Create or get MCQSession
-    // - Fetch MCQs based on topicIds and limit
-    // - Return questions
+    // Create a new session
+    // Note: In a production app, you might want to find an existing active session
+    // For now, we create a new session each time
+    const newSession = await prisma.mCQSession.create({
+      data: {
+        userId: validated.userId,
+        mode: validated.mode,
+      },
+    });
+
+    // Build where clause for MCQ query
+    const whereClause: any = {};
+    if (validated.topicIds && validated.topicIds.length > 0) {
+      whereClause.topics = {
+        some: {
+          id: {
+            in: validated.topicIds,
+          },
+        },
+      };
+    }
+
+    // Fetch MCQs with randomization
+    // Note: Prisma doesn't have native random ordering, so we'll fetch more and shuffle
+    const allMcqs = await prisma.mCQ.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        stem: true,
+        options: true,
+        // answerIndex is intentionally excluded
+      },
+      take: validated.limit * 2, // Fetch more for randomization
+    });
+
+    // Shuffle and take limit
+    const shuffled = allMcqs.sort(() => Math.random() - 0.5);
+    const selectedMcqs = shuffled.slice(0, validated.limit);
+
+    // Validate and transform to safe format (without answerIndex)
+    const safeQuestions = selectedMcqs.map((mcq) => {
+      const safe = MCQSafeSchema.parse({
+        id: mcq.id,
+        stem: mcq.stem,
+        options: mcq.options,
+      });
+      return safe;
+    });
 
     return NextResponse.json(
       {
-        sessionId: "placeholder-session-id",
-        questions: [],
-        message: "MCQ play endpoint - not yet implemented",
+        sessionId: newSession.id,
+        questions: safeQuestions,
       },
       { status: 200 }
     );
@@ -45,6 +88,7 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+    console.error("MCQ play error:", error);
     return NextResponse.json(
       { error: "Failed to process MCQ play request" },
       { status: 500 }
@@ -61,16 +105,56 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = MCQPlayRequestSchema.parse(body);
 
-    // TODO: Implement logic to fetch MCQs
-    // - Create or get MCQSession
-    // - Fetch MCQs based on topicIds and limit
-    // - Return questions
+    // Create a new session
+    const newSession = await prisma.mCQSession.create({
+      data: {
+        userId: validated.userId,
+        mode: validated.mode,
+      },
+    });
+
+    // Build where clause for MCQ query
+    const whereClause: any = {};
+    if (validated.topicIds && validated.topicIds.length > 0) {
+      whereClause.topics = {
+        some: {
+          id: {
+            in: validated.topicIds,
+          },
+        },
+      };
+    }
+
+    // Fetch MCQs with randomization
+    const allMcqs = await prisma.mCQ.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        stem: true,
+        options: true,
+        // answerIndex is intentionally excluded
+      },
+      take: validated.limit * 2, // Fetch more for randomization
+    });
+
+    // Shuffle and take limit
+    const shuffled = allMcqs.sort(() => Math.random() - 0.5);
+    const selectedMcqs = shuffled.slice(0, validated.limit);
+
+    // Validate and transform to safe format (without answerIndex)
+    const safeQuestions = selectedMcqs.map((mcq) => {
+      const safe = MCQSafeSchema.parse({
+        id: mcq.id,
+        stem: mcq.stem,
+        options: mcq.options,
+      });
+      return safe;
+    });
 
     return NextResponse.json(
       {
-        sessionId: "placeholder-session-id",
-        questions: [],
-        message: "MCQ play endpoint - not yet implemented",
+        sessionId: newSession.id,
+        questions: safeQuestions,
       },
       { status: 200 }
     );
@@ -81,6 +165,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    console.error("MCQ play error:", error);
     return NextResponse.json(
       { error: "Failed to process MCQ play request" },
       { status: 500 }
