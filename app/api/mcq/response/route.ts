@@ -5,6 +5,7 @@ import {
   MCQResultSchema,
   MCQResult,
 } from "@/lib/contracts/mcq";
+import { updateWeakAreas } from "@/lib/services/weakAreaService";
 
 /**
  * POST /api/mcq/response
@@ -64,6 +65,16 @@ export async function POST(request: NextRequest) {
         timeMs: validated.timeMs,
         userId: session.userId,
       },
+    });
+
+    // Update weak area snapshots (non-blocking - failures won't break response)
+    updateWeakAreas({
+      userId: session.userId,
+      mcqId: validated.mcqId,
+      isCorrect,
+    }).catch((error) => {
+      // Log but don't throw - weak area updates are best-effort
+      console.error("Weak area update failed (non-blocking):", error);
     });
 
     // Build result
