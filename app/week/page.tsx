@@ -126,12 +126,20 @@ export default function WeekPage() {
     <div className="p-8 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Week View</h1>
-        <Link
-          href="/weak-areas"
-          className="text-blue-600 hover:text-blue-800 underline"
-        >
-          View Weak Areas →
-        </Link>
+        <div className="flex gap-4">
+          <Link
+            href="/mcq/play"
+            className="text-blue-600 hover:text-blue-800 underline"
+          >
+            Practice MCQs →
+          </Link>
+          <Link
+            href="/weak-areas"
+            className="text-blue-600 hover:text-blue-800 underline"
+          >
+            View Weak Areas →
+          </Link>
+        </div>
       </div>
 
       {isLoading && (
