@@ -10,6 +10,8 @@ import { usePlan, planQueryKey } from "@/hooks/usePlan";
 import { usePlanMutation } from "@/hooks/usePlanMutation";
 import { planToTasks } from "@/lib/transformers";
 import { ErrorMessage } from "@/components/ErrorMessage";
+import { useFeedback, useFeedbackMutation } from "@/hooks/useFeedback";
+import { Mood } from "@/lib/contracts/feedback";
 
 /**
  * Convert YYYY-MM-DD to DD/MM/YYYY format
@@ -17,6 +19,14 @@ import { ErrorMessage } from "@/components/ErrorMessage";
 function convertApiDateToDisplayFormat(apiDate: string): string {
   const [yyyy, mm, dd] = apiDate.split("-").map(Number);
   return formatDate(new Date(yyyy, mm - 1, dd));
+}
+
+/**
+ * Convert DD/MM/YYYY to YYYY-MM-DD format
+ */
+function convertDisplayDateToApiFormat(displayDate: string): string {
+  const [dd, mm, yyyy] = displayDate.split("/").map(Number);
+  return `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
 }
 
 export default function DayPage() {
@@ -107,6 +117,48 @@ export default function DayPage() {
       setApiError(null);
     }
   }, [queryError, apiError]);
+
+  // Convert currentDate to API format for feedback
+  const apiDate = convertDisplayDateToApiFormat(currentDate);
+  
+  // Fetch existing feedback
+  const { data: existingFeedback } = useFeedback(apiDate);
+  const submitFeedback = useFeedbackMutation();
+
+  // Feedback form state
+  const [mood, setMood] = useState<Mood | null>(null);
+  const [blockers, setBlockers] = useState<string>("");
+  const [note, setNote] = useState<string>("");
+
+  // Update form when feedback loads
+  useEffect(() => {
+    if (existingFeedback) {
+      setMood(existingFeedback.mood as Mood | null);
+      setBlockers(existingFeedback.blockers || "");
+      setNote(existingFeedback.note || "");
+    } else {
+      setMood(null);
+      setBlockers("");
+      setNote("");
+    }
+  }, [existingFeedback]);
+
+  const handleFeedbackSubmit = async () => {
+    if (!mood) {
+      return;
+    }
+
+    try {
+      await submitFeedback.mutateAsync({
+        date: apiDate,
+        mood,
+        blockers: blockers.trim() || null,
+        note: note.trim() || null,
+      });
+    } catch (error: any) {
+      console.error("Failed to submit feedback:", error);
+    }
+  };
 
   // Derive tasks directly from plan
   const activeTasks = planToTasks(plan);
@@ -321,6 +373,72 @@ export default function DayPage() {
       <button onClick={carryForwardTasks} className="border px-4 py-2 mt-6">
         Move to Next Day
       </button>
+
+      {/* Daily Feedback Section */}
+      <div className="mt-12 pt-8 border-t border-gray-300">
+        <h3 className="text-lg font-semibold mb-4">Daily Feedback</h3>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">How was your day?</label>
+            <div className="flex gap-2 flex-wrap">
+              {(["great", "good", "okay", "tough", "struggling"] as Mood[]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMood(m)}
+                  className={`px-4 py-2 border ${
+                    mood === m
+                      ? "bg-blue-100 border-blue-400"
+                      : "border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  {m.charAt(0).toUpperCase() + m.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Blockers (optional)
+            </label>
+            <input
+              type="text"
+              value={blockers}
+              onChange={(e) => setBlockers(e.target.value)}
+              placeholder="What blocked your progress today?"
+              className="w-full border px-3 py-2"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Notes (optional)
+            </label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Any additional thoughts..."
+              rows={3}
+              className="w-full border px-3 py-2"
+            />
+          </div>
+
+          <button
+            onClick={handleFeedbackSubmit}
+            disabled={!mood || submitFeedback.isPending}
+            className="px-6 py-2 bg-blue-600 text-white border border-blue-700 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitFeedback.isPending ? "Saving..." : "Save Feedback"}
+          </button>
+
+          {submitFeedback.isError && (
+            <div className="text-red-600 text-sm">
+              Failed to save feedback. Please try again.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
