@@ -15,6 +15,14 @@ export default function MCQPlayPage() {
     correctAnswerIndex: number;
   } | null>(null);
   const [timeStarted, setTimeStarted] = useState<number | null>(null);
+  
+  // Session-level stats
+  const [sessionStats, setSessionStats] = useState({
+    totalQuestions: 0,
+    correctAnswers: 0,
+    totalTimeMs: 0,
+    answeredQuestions: 0,
+  });
 
   // Fetch MCQs (hardcoded to no topic filter for now - can be made configurable later)
   const { data: playData, isLoading, error, refetch } = useMCQPlay(undefined, 10);
@@ -25,13 +33,26 @@ export default function MCQPlayPage() {
   const currentQuestion = questions[currentQuestionIndex];
   const hasMoreQuestions = currentQuestionIndex < questions.length - 1;
   const isQuestionAnswered = result !== null;
+  const isSessionComplete = questions.length > 0 && 
+    currentQuestionIndex === questions.length - 1 && 
+    isQuestionAnswered;
+
+  // Initialize session stats when questions are loaded
+  useEffect(() => {
+    if (questions.length > 0 && sessionStats.totalQuestions === 0) {
+      setSessionStats((prev) => ({
+        ...prev,
+        totalQuestions: questions.length,
+      }));
+    }
+  }, [questions.length, sessionStats.totalQuestions]);
 
   // Start timer when question loads
   useEffect(() => {
-    if (currentQuestion && !isQuestionAnswered) {
+    if (currentQuestion && !isQuestionAnswered && !isSessionComplete) {
       setTimeStarted(Date.now());
     }
-  }, [currentQuestionIndex, currentQuestion, isQuestionAnswered]);
+  }, [currentQuestionIndex, currentQuestion, isQuestionAnswered, isSessionComplete]);
 
   const handleOptionClick = async (choice: number) => {
     if (!currentQuestion || !sessionId || isQuestionAnswered) {
@@ -40,18 +61,26 @@ export default function MCQPlayPage() {
 
     setSelectedChoice(choice);
 
-    // Calculate time spent
-    const timeMs = timeStarted ? Date.now() - timeStarted : 0;
+    // Calculate time spent for this question
+    const questionTimeMs = timeStarted ? Date.now() - timeStarted : 0;
 
     try {
       const responseResult = await submitResponse.mutateAsync({
         sessionId,
         mcqId: currentQuestion.id,
         choice,
-        timeMs,
+        timeMs: questionTimeMs,
       });
 
       setResult(responseResult);
+
+      // Update session stats
+      setSessionStats((prev) => ({
+        ...prev,
+        correctAnswers: prev.correctAnswers + (responseResult.correct ? 1 : 0),
+        totalTimeMs: prev.totalTimeMs + questionTimeMs,
+        answeredQuestions: prev.answeredQuestions + 1,
+      }));
     } catch (error: any) {
       console.error("Failed to submit response:", error);
       // Reset selection on error
@@ -117,15 +146,17 @@ export default function MCQPlayPage() {
         Question {currentQuestionIndex + 1} of {questions.length}
       </div>
 
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-4">{currentQuestion.stem}</h2>
+      {!isSessionComplete && (
+        <>
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold mb-4">{currentQuestion.stem}</h2>
 
-        <div className="space-y-2">
-          {currentQuestion.options.map((option: string, index: number) => {
-            const isSelected = selectedChoice === index;
-            const isDisabled = isQuestionAnswered;
-            const isCorrectAnswer = result && result.correctAnswerIndex === index;
-            const isWrongSelection = result && isSelected && !result.correct;
+            <div className="space-y-2">
+              {currentQuestion.options.map((option: string, index: number) => {
+                const isSelected = selectedChoice === index;
+                const isDisabled = isQuestionAnswered || isSessionComplete;
+                const isCorrectAnswer = result && result.correctAnswerIndex === index;
+                const isWrongSelection = result && isSelected && !result.correct;
 
             let optionStyle = "border border-gray-300 px-4 py-3 text-left cursor-pointer hover:bg-gray-50";
             if (isDisabled) {
@@ -176,7 +207,7 @@ export default function MCQPlayPage() {
         </div>
       )}
 
-      {isQuestionAnswered && (
+      {isQuestionAnswered && !isSessionComplete && (
         <div className="flex justify-between items-center">
           {hasMoreQuestions ? (
             <button
@@ -185,14 +216,44 @@ export default function MCQPlayPage() {
             >
               Next Question
             </button>
-          ) : (
+          ) : null}
+        </div>
+      )}
+        </>
+      )}
+
+      {isSessionComplete && (
+        <div className="mt-8 p-6 border border-gray-300">
+          <h3 className="text-xl font-semibold mb-4">Session Complete</h3>
+          
+          <div className="space-y-2 text-gray-700">
             <div>
-              <div className="text-gray-600 mb-2">All questions completed.</div>
-              <Link href="/week" className="text-blue-600 underline">
-                ← Back to Week View
-              </Link>
+              <span className="font-medium">Questions attempted:</span> {sessionStats.answeredQuestions} / {sessionStats.totalQuestions}
             </div>
-          )}
+            <div>
+              <span className="font-medium">Correct:</span> {sessionStats.correctAnswers}
+            </div>
+            <div>
+              <span className="font-medium">Incorrect:</span> {sessionStats.answeredQuestions - sessionStats.correctAnswers}
+            </div>
+            <div>
+              <span className="font-medium">Accuracy:</span> {sessionStats.answeredQuestions > 0 
+                ? ((sessionStats.correctAnswers / sessionStats.answeredQuestions) * 100).toFixed(1)
+                : 0}%
+            </div>
+            <div>
+              <span className="font-medium">Total time:</span> {Math.round(sessionStats.totalTimeMs / 1000)} seconds
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <Link
+              href="/week"
+              className="text-blue-600 underline"
+            >
+              ← Back to Week View
+            </Link>
+          </div>
         </div>
       )}
     </div>
