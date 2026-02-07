@@ -68,3 +68,70 @@ export function getRateLimitStatus(userId: string): {
     resetDate: today,
   };
 }
+
+/**
+ * Regeneration rate limiter (separate from preview rate limit)
+ */
+const regenerationCache = new Map<string, { count: number; date: string }>();
+const MAX_REGENERATIONS_PER_DAY = 3;
+
+/**
+ * Check and increment regeneration limit for a user
+ * Returns true if allowed, false if rate limited
+ */
+export async function checkRegenerationLimit(userId: string): Promise<boolean> {
+  const today = new Date().toISOString().split("T")[0];
+  const key = `regenerate:${userId}:${today}`;
+
+  const cached = regenerationCache.get(key);
+
+  if (cached && cached.date === today) {
+    if (cached.count >= MAX_REGENERATIONS_PER_DAY) {
+      return false;
+    }
+    cached.count++;
+    regenerationCache.set(key, cached);
+  } else {
+    regenerationCache.set(key, { count: 1, date: today });
+  }
+
+  // Clean up old entries
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+  for (const [cacheKey, value] of regenerationCache.entries()) {
+    if (value.date < yesterdayStr) {
+      regenerationCache.delete(cacheKey);
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Get current regeneration status for a user
+ */
+export function getRegenerationStatus(userId: string): {
+  allowed: boolean;
+  remaining: number;
+  resetDate: string;
+} {
+  const today = new Date().toISOString().split("T")[0];
+  const key = `regenerate:${userId}:${today}`;
+  const cached = regenerationCache.get(key);
+
+  if (cached && cached.date === today) {
+    return {
+      allowed: cached.count < MAX_REGENERATIONS_PER_DAY,
+      remaining: Math.max(0, MAX_REGENERATIONS_PER_DAY - cached.count),
+      resetDate: today,
+    };
+  }
+
+  return {
+    allowed: true,
+    remaining: MAX_REGENERATIONS_PER_DAY,
+    resetDate: today,
+  };
+}

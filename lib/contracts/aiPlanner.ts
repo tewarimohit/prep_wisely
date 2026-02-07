@@ -38,7 +38,31 @@ export const AIWeekSummarySchema = z.object({
   notes: z.string().min(1, "Notes cannot be empty"),
 });
 
+/**
+ * Weak area input for planner
+ */
+export const WeakAreaInputSchema = z.object({
+  topicId: z.string().cuid(),
+  topicName: z.string().min(1),
+  score: z.number().min(0).max(100),
+  attempts: z.number().int().min(0),
+});
+
+/**
+ * Planner input schema - all data needed for plan generation
+ */
+export const PlannerInputSchema = z.object({
+  weakAreas: z.array(WeakAreaInputSchema).max(10, "Maximum 10 weak areas"),
+  lastWeekCompletion: z.number().min(0).max(100),
+  recentMCQAccuracy: z.number().min(0).max(100),
+  latestMood: z.string().nullable(),
+  latestBlockers: z.string().nullable(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
+});
+
 // Type exports for TypeScript
 export type AIDayPlanItem = z.infer<typeof AIDayPlanItemSchema>;
 export type AIDayPlan = z.infer<typeof AIDayPlanSchema>;
 export type AIWeekSummary = z.infer<typeof AIWeekSummarySchema>;
+export type WeakAreaInput = z.infer<typeof WeakAreaInputSchema>;
+export type PlannerInput = z.infer<typeof PlannerInputSchema>;

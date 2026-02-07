@@ -5,12 +5,27 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { AIDayPlan } from "@/lib/contracts/aiPlanner";
+import { usePlan } from "@/hooks/usePlan";
+import { planToAIDayPlan } from "@/lib/transformers";
+import { computePlanDiff, plansAreIdentical, PlanDiff } from "@/lib/utils/planDiff";
+
+/**
+ * Convert YYYY-MM-DD to DD/MM/YYYY for usePlan hook
+ */
+function convertApiDateToDisplayFormat(apiDate: string): string {
+  const [yyyy, mm, dd] = apiDate.split("-").map(Number);
+  return `${String(dd).padStart(2, "0")}/${String(mm).padStart(2, "0")}/${yyyy}`;
+}
 
 export default function AIPreviewPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const dateParam = searchParams.get("date") || new Date().toISOString().split("T")[0];
   const type = searchParams.get("type") || "day";
+
+  // Convert date for fetching current plan
+  const displayDate = convertApiDateToDisplayFormat(dateParam);
+  const { data: currentPlanData } = usePlan(displayDate);
 
   const [previewData, setPreviewData] = useState<{
     context: any;
@@ -21,6 +36,9 @@ export default function AIPreviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
+  const [regenerationLimit, setRegenerationLimit] = useState<string | null>(null);
 
   // Fetch preview on mount
   useEffect(() => {
@@ -84,10 +102,66 @@ export default function AIPreviewPage() {
     }
   };
 
-  const handleRegenerate = () => {
-    // Reload preview
-    window.location.reload();
+  const handleRegenerate = async () => {
+    try {
+      setIsRegenerating(true);
+      setRegenerateError(null);
+      setRegenerationLimit(null);
+
+      const response = await fetch("/api/ai/regenerate-plan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          date: dateParam,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          setRegenerationLimit(data.message || "Regeneration limit exceeded");
+        }
+        throw new Error(data.error || "Failed to regenerate plan");
+      }
+
+      // Update preview with new plan
+      setPreviewData((prev) => ({
+        ...prev!,
+        plan: data.plan,
+        metadata: data.metadata,
+      }));
+    } catch (err: any) {
+      setRegenerateError(err.message);
+    } finally {
+      setIsRegenerating(false);
+    }
   };
+
+  const handleKeepCurrent = () => {
+    // Navigate to Day page without accepting new plan
+    router.push(`/day?date=${dateParam}`);
+  };
+
+  // Convert current plan to AIDayPlan format for comparison
+  const currentAIPlan = currentPlanData ? planToAIDayPlan(currentPlanData) : null;
+  
+  // Compute diff if we have both plans
+  const diff: PlanDiff | null = previewData?.plan && currentAIPlan
+    ? computePlanDiff(currentAIPlan, previewData.plan)
+    : null;
+  
+  const hasChanges = diff && (
+    diff.added.length > 0 ||
+    diff.removed.length > 0 ||
+    diff.reordered.length > 0
+  );
+  
+  const isIdentical = previewData?.plan && currentAIPlan
+    ? plansAreIdentical(currentAIPlan, previewData.plan)
+    : false;
 
   if (isLoading) {
     return (
@@ -140,36 +214,132 @@ export default function AIPreviewPage() {
 
       {type === "day" && previewData.plan && (
         <>
-          <div className="mb-6 p-4 border border-gray-300 rounded-lg">
-            <h2 className="text-xl font-semibold mb-4">{previewData.plan.title}</h2>
+          {/* Comparison UI */}
+          {currentAIPlan && diff && (
+            <div className="mb-6 p-4 border border-gray-300 rounded-lg bg-gray-50">
+              <h2 className="text-lg font-semibold mb-3">Plan Comparison</h2>
+              
+              {isIdentical ? (
+                <div className="text-gray-600 text-sm">
+                  The new suggestion is identical to your current plan.
+                </div>
+              ) : hasChanges ? (
+                <div className="space-y-4">
+                  {diff.added.length > 0 && (
+                    <div>
+                      <h3 className="font-medium text-sm text-gray-700 mb-1">Added tasks:</h3>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
+                        {diff.added.map((item, idx) => (
+                          <li key={idx}>{item.text}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {diff.removed.length > 0 && (
+                    <div>
+                      <h3 className="font-medium text-sm text-gray-700 mb-1">Removed tasks:</h3>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
+                        {diff.removed.map((item, idx) => (
+                          <li key={idx}>{item.text}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {diff.reordered.length > 0 && (
+                    <div>
+                      <h3 className="font-medium text-sm text-gray-700 mb-1">Reordered tasks:</h3>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
+                        {diff.reordered.map((item, idx) => (
+                          <li key={idx}>
+                            {item.text} (was #{item.oldOrder + 1}, now #{item.newOrder + 1})
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-gray-600 text-sm">
+                  No changes detected.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Current Plan */}
+          {currentAIPlan && (
+            <div className="mb-6 p-4 border border-gray-300 rounded-lg">
+              <h2 className="text-lg font-semibold mb-2 text-gray-700">Current Plan</h2>
+              <h3 className="text-md font-medium mb-3">{currentAIPlan.title}</h3>
+              <div className="space-y-2">
+                {currentAIPlan.items.map((item, index) => (
+                  <div key={index} className="flex items-start gap-2">
+                    <span className="text-gray-500 font-medium">{index + 1}.</span>
+                    <span className="text-gray-700">{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* New Suggestion */}
+          <div className="mb-6 p-4 border border-gray-300 rounded-lg border-blue-400 bg-blue-50">
+            <h2 className="text-lg font-semibold mb-2 text-blue-900">New Suggestion</h2>
+            <h3 className="text-md font-medium mb-3">{previewData.plan.title}</h3>
             <div className="space-y-2">
               {previewData.plan.items
                 .sort((a: any, b: any) => a.order - b.order)
                 .map((item: any, index: number) => (
                   <div key={index} className="flex items-start gap-2">
-                    <span className="text-gray-500 font-medium">{index + 1}.</span>
-                    <span>{item.text}</span>
+                    <span className="text-blue-600 font-medium">{index + 1}.</span>
+                    <span className="text-blue-900">{item.text}</span>
                   </div>
                 ))}
             </div>
           </div>
 
-          <div className="flex gap-4">
+          {/* Actions */}
+          <div className="flex gap-4 flex-wrap">
             <button
               onClick={handleAccept}
-              disabled={isAccepting}
+              disabled={isAccepting || isRegenerating}
               className="px-6 py-2 bg-green-600 text-white border border-green-700 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isAccepting ? "Accepting..." : "Accept Plan"}
+              {isAccepting ? "Accepting..." : "Accept New Plan"}
             </button>
+            
+            {currentAIPlan && (
+              <button
+                onClick={handleKeepCurrent}
+                disabled={isAccepting || isRegenerating}
+                className="px-6 py-2 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Keep Current
+              </button>
+            )}
+            
             <button
               onClick={handleRegenerate}
-              disabled={isAccepting}
+              disabled={isAccepting || isRegenerating || regenerationLimit !== null}
               className="px-6 py-2 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Regenerate
+              {isRegenerating ? "Regenerating..." : "Regenerate Again"}
             </button>
           </div>
+
+          {regenerationLimit && (
+            <div className="mt-4 text-orange-600 text-sm">
+              {regenerationLimit}
+            </div>
+          )}
+
+          {regenerateError && (
+            <div className="mt-4 text-red-600 text-sm">
+              Failed to regenerate: {regenerateError}
+            </div>
+          )}
 
           {acceptError && (
             <div className="mt-4 text-red-600 text-sm">
