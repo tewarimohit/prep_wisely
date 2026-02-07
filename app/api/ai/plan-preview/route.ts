@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildPlannerContext } from "@/lib/services/plannerContext";
 import { generateDayPlan, generateWeekPlan } from "@/lib/services/aiPlanner";
+import { checkRateLimit, getRateLimitStatus } from "@/lib/services/rateLimiter";
+import { getAIModel } from "@/lib/services/aiClient";
 
 // TODO: Replace with auth context userId
 const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
@@ -39,31 +41,48 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Check rate limit
+    const rateLimitAllowed = await checkRateLimit(TEST_USER_ID);
+    if (!rateLimitAllowed) {
+      const status = getRateLimitStatus(TEST_USER_ID);
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: `Maximum ${status.remaining} requests per day. Reset date: ${status.resetDate}`,
+        },
+        { status: 429 }
+      );
+    }
+
     // Build planner context from real app data
     const context = await buildPlannerContext(TEST_USER_ID, dateParam);
 
     // Generate plan based on type
+    const startTime = Date.now();
+    let plan;
+    
     if (type === "day") {
-      const dayPlan = await generateDayPlan(context);
-      return NextResponse.json(
-        {
-          type: "day",
-          context,
-          plan: dayPlan,
-        },
-        { status: 200 }
-      );
+      plan = await generateDayPlan(context);
     } else {
-      const weekPlan = await generateWeekPlan(context);
-      return NextResponse.json(
-        {
-          type: "week",
-          context,
-          plan: weekPlan,
-        },
-        { status: 200 }
-      );
+      plan = await generateWeekPlan(context);
     }
+
+    const generationTime = Date.now() - startTime;
+
+    // Return preview (no DB writes)
+    return NextResponse.json(
+      {
+        type,
+        context,
+        plan,
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          modelUsed: getAIModel(),
+          generationTimeMs: generationTime,
+        },
+      },
+      { status: 200 }
+    );
   } catch (error: any) {
     if (error.name === "ZodError") {
       return NextResponse.json(

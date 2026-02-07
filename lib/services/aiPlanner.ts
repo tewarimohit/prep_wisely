@@ -5,133 +5,231 @@ import {
   AIWeekSummarySchema,
   PlannerInput,
 } from "@/lib/contracts/aiPlanner";
+import { callAI, getAIModel } from "./aiClient";
 
 /**
  * Generate a daily plan based on real planner context
  * 
- * This is a stub function that returns mocked data derived from inputs.
- * In production, this would call an AI API (e.g., OpenAI, Anthropic).
+ * Calls AI API with structured prompt and validates output with Zod.
+ * Falls back to mocked data if AI call fails or validation fails.
  * 
  * @param context - Real planner context from buildPlannerContext
  * @returns Generated day plan conforming to AIDayPlanSchema
  */
 export async function generateDayPlan(context: PlannerInput): Promise<AIDayPlan> {
-  // TODO: Replace with actual AI API call
-  // For now, return mocked data that is derived from real context
-  
-  // Derive plan title based on mood and completion
-  let title = "Daily Study Plan";
-  if (context.latestMood === "struggling" || context.lastWeekCompletion < 50) {
-    title = "Focused Recovery Plan";
-  } else if (context.latestMood === "great" && context.lastWeekCompletion >= 80) {
-    title = "Maintain Momentum Plan";
-  }
+  // Fallback plan (used if AI fails or validation fails)
+  const getFallbackPlan = (): AIDayPlan => {
+    let title = "Daily Study Plan";
+    if (context.latestMood === "struggling" || context.lastWeekCompletion < 50) {
+      title = "Focused Recovery Plan";
+    } else if (context.latestMood === "great" && context.lastWeekCompletion >= 80) {
+      title = "Maintain Momentum Plan";
+    }
 
-  // Build items based on weak areas
-  const items: Array<{ text: string; order: number }> = [];
-  let order = 0;
+    const items: Array<{ text: string; order: number }> = [];
+    let order = 0;
 
-  // Add weak area focus items
-  if (context.weakAreas.length > 0) {
-    context.weakAreas.slice(0, 2).forEach((area) => {
-      items.push({
-        text: `Review and practice: ${area.topicName} (current accuracy: ${area.score.toFixed(1)}%)`,
-        order: order++,
+    if (context.weakAreas.length > 0) {
+      context.weakAreas.slice(0, 2).forEach((area) => {
+        items.push({
+          text: `Review and practice: ${area.topicName} (current accuracy: ${area.score.toFixed(1)}%)`,
+          order: order++,
+        });
       });
-    });
-  }
+    }
 
-  // Add MCQ practice based on recent accuracy
-  const mcqCount = context.recentMCQAccuracy < 60 ? 15 : 10;
-  items.push({
-    text: `Practice ${mcqCount} MCQs on current topics`,
-    order: order++,
-  });
-
-  // Add revision item
-  items.push({
-    text: "Revise previous day's notes and key concepts",
-    order: order++,
-  });
-
-  // Add blockers-specific item if present
-  if (context.latestBlockers) {
+    const mcqCount = context.recentMCQAccuracy < 60 ? 15 : 10;
     items.push({
-      text: `Address blocker: ${context.latestBlockers.substring(0, 50)}${context.latestBlockers.length > 50 ? "..." : ""}`,
+      text: `Practice ${mcqCount} MCQs on current topics`,
       order: order++,
     });
-  }
 
-  // Ensure at least one item
-  if (items.length === 0) {
     items.push({
-      text: "Complete daily study routine",
-      order: 0,
+      text: "Revise previous day's notes and key concepts",
+      order: order++,
     });
-  }
 
-  const plan: AIDayPlan = {
-    title,
-    items,
+    if (context.latestBlockers) {
+      items.push({
+        text: `Address blocker: ${context.latestBlockers.substring(0, 50)}${context.latestBlockers.length > 50 ? "..." : ""}`,
+        order: order++,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        text: "Complete daily study routine",
+        order: 0,
+      });
+    }
+
+    return { title, items };
   };
 
-  // Validate with Zod schema
-  return AIDayPlanSchema.parse(plan);
+  // Try AI call if API key is configured
+  if (process.env.AI_API_KEY) {
+    try {
+      const systemPrompt = `You are a study planner for UPSC exam preparation. Generate a daily study plan as a JSON object with this exact structure:
+{
+  "title": "string (plan title)",
+  "items": [
+    {
+      "text": "string (task description)",
+      "order": number (0, 1, 2, ... unique integers)
+    }
+  ]
+}
+
+Rules:
+- Title should be concise and motivating
+- Include 3-6 items
+- Items must have unique order values starting from 0
+- Focus on weak areas and improvement
+- Keep task descriptions actionable and specific
+- Return ONLY valid JSON, no markdown or extra text`;
+
+      const userPrompt = `Generate a daily study plan for ${context.date}.
+
+Context:
+- Weak areas: ${context.weakAreas.map((a) => `${a.topicName} (${a.score.toFixed(1)}% accuracy)`).join(", ") || "None identified"}
+- Last week completion: ${context.lastWeekCompletion}%
+- Recent MCQ accuracy: ${context.recentMCQAccuracy}%
+- Latest mood: ${context.latestMood || "Not recorded"}
+- Blockers: ${context.latestBlockers || "None"}
+
+Return a JSON object matching the schema exactly.`;
+
+      const aiResponse = await callAI(systemPrompt, userPrompt);
+      
+      // Parse JSON response
+      let parsedResponse: any;
+      try {
+        parsedResponse = JSON.parse(aiResponse);
+      } catch (parseError) {
+        console.error("Failed to parse AI JSON response:", parseError);
+        return getFallbackPlan();
+      }
+
+      // Validate with Zod schema
+      try {
+        const validatedPlan = AIDayPlanSchema.parse(parsedResponse);
+        return validatedPlan;
+      } catch (validationError: any) {
+        // Zod validation failed - log and fall back
+        console.error("AI day plan validation failed:", validationError.errors || validationError.message);
+        return getFallbackPlan();
+      }
+    } catch (error: any) {
+      // Log error but don't throw - fall back to mocked plan
+      console.error("AI day plan generation failed:", error.message);
+      return getFallbackPlan();
+    }
+  }
+
+  // No API key configured - use fallback
+  return getFallbackPlan();
 }
 
 /**
  * Generate a weekly summary and guidance based on real planner context
  * 
- * This is a stub function that returns mocked data derived from inputs.
- * In production, this would call an AI API (e.g., OpenAI, Anthropic).
+ * Calls AI API with structured prompt and validates output with Zod.
+ * Falls back to mocked data if AI call fails or validation fails.
  * 
  * @param context - Real planner context from buildPlannerContext
  * @returns Generated week summary conforming to AIWeekSummarySchema
  */
 export async function generateWeekPlan(context: PlannerInput): Promise<AIWeekSummary> {
-  // TODO: Replace with actual AI API call
-  // For now, return mocked data that is derived from real context
-  
-  // Determine intensity based on completion and accuracy
-  let intensity: "light" | "moderate" | "intensive" = "moderate";
-  if (context.lastWeekCompletion < 50 || context.recentMCQAccuracy < 50) {
-    intensity = "intensive";
-  } else if (context.lastWeekCompletion >= 80 && context.recentMCQAccuracy >= 70) {
-    intensity = "light";
-  }
+  // Fallback summary (used if AI fails or validation fails)
+  const getFallbackSummary = (): AIWeekSummary => {
+    let intensity: "light" | "moderate" | "intensive" = "moderate";
+    if (context.lastWeekCompletion < 50 || context.recentMCQAccuracy < 50) {
+      intensity = "intensive";
+    } else if (context.lastWeekCompletion >= 80 && context.recentMCQAccuracy >= 70) {
+      intensity = "light";
+    }
 
-  // Build focus areas from weak areas
-  const focusAreas = context.weakAreas
-    .slice(0, 3)
-    .map((area) => area.topicName);
+    const focusAreas = context.weakAreas
+      .slice(0, 3)
+      .map((area) => area.topicName);
 
-  // Add general revision if we have fewer than 3 weak areas
-  if (focusAreas.length < 3) {
-    focusAreas.push("General Revision");
-  }
+    if (focusAreas.length < 3) {
+      focusAreas.push("General Revision");
+    }
 
-  // Ensure we don't exceed max
-  const finalFocusAreas = focusAreas.slice(0, 5);
+    let notes = `Based on your ${context.lastWeekCompletion}% completion last week and ${context.recentMCQAccuracy}% MCQ accuracy`;
+    
+    if (context.latestMood) {
+      notes += `, with a ${context.latestMood} mood`;
+    }
+    
+    notes += ", focus on strengthening your weak areas while maintaining consistent practice.";
 
-  // Build notes based on context
-  let notes = `Based on your ${context.lastWeekCompletion}% completion last week and ${context.recentMCQAccuracy}% MCQ accuracy`;
-  
-  if (context.latestMood) {
-    notes += `, with a ${context.latestMood} mood`;
-  }
-  
-  notes += ", focus on strengthening your weak areas while maintaining consistent practice.";
+    if (context.latestBlockers) {
+      notes += ` Address blockers: ${context.latestBlockers.substring(0, 100)}${context.latestBlockers.length > 100 ? "..." : ""}`;
+    }
 
-  if (context.latestBlockers) {
-    notes += ` Address blockers: ${context.latestBlockers.substring(0, 100)}${context.latestBlockers.length > 100 ? "..." : ""}`;
-  }
-
-  const summary: AIWeekSummary = {
-    focusAreas: finalFocusAreas,
-    intensity,
-    notes,
+    return {
+      focusAreas: focusAreas.slice(0, 5),
+      intensity,
+      notes,
+    };
   };
 
-  // Validate with Zod schema
-  return AIWeekSummarySchema.parse(summary);
+  // Try AI call if API key is configured
+  if (process.env.AI_API_KEY) {
+    try {
+      const systemPrompt = `You are a study planner for UPSC exam preparation. Generate a weekly planning summary as a JSON object with this exact structure:
+{
+  "focusAreas": ["string", "string", ...] (1-5 topic names),
+  "intensity": "light" | "moderate" | "intensive",
+  "notes": "string (guidance paragraph)"
+}
+
+Rules:
+- focusAreas: 1-5 topic names from weak areas, prioritize lowest accuracy
+- intensity: "light" if doing well, "intensive" if struggling, "moderate" otherwise
+- notes: 2-4 sentences of actionable guidance
+- Return ONLY valid JSON, no markdown or extra text`;
+
+      const userPrompt = `Generate a weekly planning summary.
+
+Context:
+- Weak areas: ${context.weakAreas.map((a) => `${a.topicName} (${a.score.toFixed(1)}% accuracy, ${a.attempts} attempts)`).join(", ") || "None identified"}
+- Last week completion: ${context.lastWeekCompletion}%
+- Recent MCQ accuracy: ${context.recentMCQAccuracy}%
+- Latest mood: ${context.latestMood || "Not recorded"}
+- Blockers: ${context.latestBlockers || "None"}
+
+Return a JSON object matching the schema exactly.`;
+
+      const aiResponse = await callAI(systemPrompt, userPrompt);
+      
+      // Parse JSON response
+      let parsedResponse: any;
+      try {
+        parsedResponse = JSON.parse(aiResponse);
+      } catch (parseError) {
+        console.error("Failed to parse AI JSON response:", parseError);
+        return getFallbackSummary();
+      }
+
+      // Validate with Zod schema
+      try {
+        const validatedSummary = AIWeekSummarySchema.parse(parsedResponse);
+        return validatedSummary;
+      } catch (validationError: any) {
+        // Zod validation failed - log and fall back
+        console.error("AI week plan validation failed:", validationError.errors || validationError.message);
+        return getFallbackSummary();
+      }
+    } catch (error: any) {
+      // Log error but don't throw - fall back to mocked summary
+      console.error("AI week plan generation failed:", error.message);
+      return getFallbackSummary();
+    }
+  }
+
+  // No API key configured - use fallback
+  return getFallbackSummary();
 }
