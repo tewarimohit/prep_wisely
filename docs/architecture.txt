@@ -1,0 +1,89 @@
+Prep Wisely - System Architecture (ASCII)
+
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLIENT LAYER                            │
+│                                                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
+│  │   Day Page   │  │  Week Page   │  │  MCQ Play    │        │
+│  │              │  │              │  │              │        │
+│  │  • Tasks     │  │  • Progress  │  │  • Questions │        │
+│  │  • Feedback  │  │  • Summary   │  │  • Results   │        │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘        │
+│         │                 │                  │                 │
+│  ┌──────▼─────────────────▼──────────────────▼───────┐      │
+│  │         TanStack Query (React Query)                │      │
+│  │  • useQuery: Data fetching & caching                │      │
+│  │  • useMutation: Optimistic updates                  │      │
+│  │  • Query invalidation                               │      │
+│  └───────────────────────┬─────────────────────────────┘      │
+└──────────────────────────┼─────────────────────────────────────┘
+                           │ HTTP Requests
+┌──────────────────────────▼─────────────────────────────────────┐
+│                      API ROUTES LAYER                            │
+│                                                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
+│  │  /api/plans  │  │  /api/mcq    │  │  /api/ai     │        │
+│  │              │  │              │  │              │        │
+│  │  GET/POST    │  │  play/       │  │  plan-preview │        │
+│  │  /week       │  │  response/   │  │  accept-plan  │        │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘        │
+│         │                 │                  │                 │
+│  ┌──────▼─────────────────▼──────────────────▼───────┐      │
+│  │              ZOD VALIDATION                        │      │
+│  │  • Input schemas (PlannerInputSchema)              │      │
+│  │  • Output schemas (AIDayPlanSchema)                │      │
+│  │  • Runtime type checking                           │      │
+│  └───────────────────────┬───────────────────────────┘      │
+└──────────────────────────┼──────────────────────────────────────┘
+                           │
+┌──────────────────────────▼─────────────────────────────────────┐
+│                      SERVICE LAYER                               │
+│                                                                 │
+│  ┌────────────────────┐  ┌────────────────────┐              │
+│  │  Planner Context   │  │  Weak Area         │              │
+│  │  Builder           │  │  Service          │              │
+│  │                    │  │                    │              │
+│  │  • Aggregates      │  │  • Updates         │              │
+│  │    weak areas      │  │    snapshots       │              │
+│  │  • Fetches plans   │  │  • Calculates      │              │
+│  │  • Gets MCQ stats  │  │    accuracy        │              │
+│  │  • Loads feedback  │  │                    │              │
+│  └─────────┬──────────┘  └──────────┬─────────┘              │
+│            │                        │                         │
+│  ┌─────────▼────────────────────────▼─────────┐            │
+│  │         AI PLANNER SERVICE                   │            │
+│  │  • Generates day/week plans                  │            │
+│  │  • Validates with Zod                        │            │
+│  │  • Falls back on error                       │            │
+│  │  • Rate limited (server-side)                │            │
+│  └───────────────────┬─────────────────────────┘            │
+└──────────────────────┼───────────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────────┐
+│                  DATA ACCESS LAYER                               │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │              PRISMA ORM                               │    │
+│  │  • Type-safe queries                                 │    │
+│  │  • Migrations                                        │    │
+│  │  • Connection pooling                                │    │
+│  └───────────────────────┬──────────────────────────────┘    │
+└──────────────────────────┼───────────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────────┐
+│                  POSTGRESQL DATABASE                             │
+│                                                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
+│  │   Plan   │  │   MCQ    │  │   Weak   │  │ Feedback │    │
+│  │          │  │          │  │  Areas   │  │          │    │
+│  │  • Items │  │  • Topics│  │  • Score │  │  • Mood  │    │
+│  │  • Status│  │  • Stats │  │  • Count │  │  • Notes │    │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
+└──────────────────────────────────────────────────────────────────┘
+
+KEY DESIGN PRINCIPLES:
+• Schema-First: Prisma schema → Zod contracts → TypeScript types
+• User-in-Loop AI: AI suggests, user decides (no silent writes)
+• Fail-Closed Safety: Zod validation + fallback system
+• Optimistic UI: Instant feedback + server reconciliation
+• Type Safety: End-to-end from database to UI

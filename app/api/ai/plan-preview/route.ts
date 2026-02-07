@@ -13,10 +13,11 @@ const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
  * Internal endpoint for testing planner integration
  */
 export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const dateParam = searchParams.get("date");
+  const type = searchParams.get("type") || "day"; // "day" or "week"
+  
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const dateParam = searchParams.get("date");
-    const type = searchParams.get("type") || "day"; // "day" or "week"
 
     if (!dateParam) {
       return NextResponse.json(

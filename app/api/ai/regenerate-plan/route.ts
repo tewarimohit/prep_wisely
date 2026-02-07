@@ -13,8 +13,9 @@ const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
  * Returns fresh suggestion based on same context
  */
 export async function POST(request: NextRequest) {
+  let body: any = null;
   try {
-    const body = await request.json();
+    body = await request.json();
 
     // Validate required fields
     if (!body.date) {
