@@ -1,112 +1,137 @@
-import { AIDayPlan, AIDayPlanSchema, AIWeekSummary, AIWeekSummarySchema } from "@/lib/contracts/aiPlanner";
+import {
+  AIDayPlan,
+  AIDayPlanSchema,
+  AIWeekSummary,
+  AIWeekSummarySchema,
+  PlannerInput,
+} from "@/lib/contracts/aiPlanner";
 
 /**
- * Input data for AI day plan generation
- */
-export interface AIDayPlanInput {
-  weakAreas: Array<{
-    topicId: string;
-    topicName: string;
-    score: number;
-    attempts: number;
-  }>;
-  lastWeekCompletion: number; // percentage 0-100
-  recentMCQAccuracy: number; // percentage 0-100
-  latestMood: string | null;
-  date: string; // YYYY-MM-DD
-}
-
-/**
- * Input data for AI week plan generation
- */
-export interface AIWeekPlanInput {
-  weakAreas: Array<{
-    topicId: string;
-    topicName: string;
-    score: number;
-    attempts: number;
-  }>;
-  lastWeekCompletion: number; // percentage 0-100
-  recentMCQAccuracy: number; // percentage 0-100
-  latestMood: string | null;
-  startDate: string; // YYYY-MM-DD (Monday)
-  endDate: string; // YYYY-MM-DD (Sunday)
-}
-
-/**
- * Generate a daily plan based on user data
+ * Generate a daily plan based on real planner context
  * 
- * This is a stub function that returns mocked data.
+ * This is a stub function that returns mocked data derived from inputs.
  * In production, this would call an AI API (e.g., OpenAI, Anthropic).
  * 
- * @param input - User data and context for plan generation
+ * @param context - Real planner context from buildPlannerContext
  * @returns Generated day plan conforming to AIDayPlanSchema
  */
-export async function generateDayPlan(input: AIDayPlanInput): Promise<AIDayPlan> {
+export async function generateDayPlan(context: PlannerInput): Promise<AIDayPlan> {
   // TODO: Replace with actual AI API call
-  // For now, return mocked data that conforms to schema
+  // For now, return mocked data that is derived from real context
   
-  const mockPlan: AIDayPlan = {
-    title: "Daily Study Plan",
-    items: [
-      {
-        text: "Review weak area: " + (input.weakAreas[0]?.topicName || "General Studies"),
-        order: 0,
-      },
-      {
-        text: "Practice 10 MCQs on current topic",
-        order: 1,
-      },
-      {
-        text: "Revise previous day's notes",
-        order: 2,
-      },
-      {
-        text: "Complete daily current affairs reading",
-        order: 3,
-      },
-    ],
+  // Derive plan title based on mood and completion
+  let title = "Daily Study Plan";
+  if (context.latestMood === "struggling" || context.lastWeekCompletion < 50) {
+    title = "Focused Recovery Plan";
+  } else if (context.latestMood === "great" && context.lastWeekCompletion >= 80) {
+    title = "Maintain Momentum Plan";
+  }
+
+  // Build items based on weak areas
+  const items: Array<{ text: string; order: number }> = [];
+  let order = 0;
+
+  // Add weak area focus items
+  if (context.weakAreas.length > 0) {
+    context.weakAreas.slice(0, 2).forEach((area) => {
+      items.push({
+        text: `Review and practice: ${area.topicName} (current accuracy: ${area.score.toFixed(1)}%)`,
+        order: order++,
+      });
+    });
+  }
+
+  // Add MCQ practice based on recent accuracy
+  const mcqCount = context.recentMCQAccuracy < 60 ? 15 : 10;
+  items.push({
+    text: `Practice ${mcqCount} MCQs on current topics`,
+    order: order++,
+  });
+
+  // Add revision item
+  items.push({
+    text: "Revise previous day's notes and key concepts",
+    order: order++,
+  });
+
+  // Add blockers-specific item if present
+  if (context.latestBlockers) {
+    items.push({
+      text: `Address blocker: ${context.latestBlockers.substring(0, 50)}${context.latestBlockers.length > 50 ? "..." : ""}`,
+      order: order++,
+    });
+  }
+
+  // Ensure at least one item
+  if (items.length === 0) {
+    items.push({
+      text: "Complete daily study routine",
+      order: 0,
+    });
+  }
+
+  const plan: AIDayPlan = {
+    title,
+    items,
   };
 
   // Validate with Zod schema
-  return AIDayPlanSchema.parse(mockPlan);
+  return AIDayPlanSchema.parse(plan);
 }
 
 /**
- * Generate a weekly summary and guidance based on user data
+ * Generate a weekly summary and guidance based on real planner context
  * 
- * This is a stub function that returns mocked data.
+ * This is a stub function that returns mocked data derived from inputs.
  * In production, this would call an AI API (e.g., OpenAI, Anthropic).
  * 
- * @param input - User data and context for week planning
+ * @param context - Real planner context from buildPlannerContext
  * @returns Generated week summary conforming to AIWeekSummarySchema
  */
-export async function generateWeekPlan(input: AIWeekPlanInput): Promise<AIWeekSummary> {
+export async function generateWeekPlan(context: PlannerInput): Promise<AIWeekSummary> {
   // TODO: Replace with actual AI API call
-  // For now, return mocked data that conforms to schema
+  // For now, return mocked data that is derived from real context
   
   // Determine intensity based on completion and accuracy
   let intensity: "light" | "moderate" | "intensive" = "moderate";
-  if (input.lastWeekCompletion < 50 || input.recentMCQAccuracy < 50) {
+  if (context.lastWeekCompletion < 50 || context.recentMCQAccuracy < 50) {
     intensity = "intensive";
-  } else if (input.lastWeekCompletion >= 80 && input.recentMCQAccuracy >= 70) {
+  } else if (context.lastWeekCompletion >= 80 && context.recentMCQAccuracy >= 70) {
     intensity = "light";
   }
 
-  const mockSummary: AIWeekSummary = {
-    focusAreas: input.weakAreas
-      .slice(0, 3)
-      .map((area) => area.topicName)
-      .concat(["General Revision"]),
-    intensity,
-    notes: `Based on your ${input.lastWeekCompletion}% completion last week and ${input.recentMCQAccuracy}% MCQ accuracy, focus on strengthening your weak areas while maintaining consistent practice.`,
-  };
+  // Build focus areas from weak areas
+  const focusAreas = context.weakAreas
+    .slice(0, 3)
+    .map((area) => area.topicName);
 
-  // Ensure focus areas are within limit
-  if (mockSummary.focusAreas.length > 5) {
-    mockSummary.focusAreas = mockSummary.focusAreas.slice(0, 5);
+  // Add general revision if we have fewer than 3 weak areas
+  if (focusAreas.length < 3) {
+    focusAreas.push("General Revision");
   }
 
+  // Ensure we don't exceed max
+  const finalFocusAreas = focusAreas.slice(0, 5);
+
+  // Build notes based on context
+  let notes = `Based on your ${context.lastWeekCompletion}% completion last week and ${context.recentMCQAccuracy}% MCQ accuracy`;
+  
+  if (context.latestMood) {
+    notes += `, with a ${context.latestMood} mood`;
+  }
+  
+  notes += ", focus on strengthening your weak areas while maintaining consistent practice.";
+
+  if (context.latestBlockers) {
+    notes += ` Address blockers: ${context.latestBlockers.substring(0, 100)}${context.latestBlockers.length > 100 ? "..." : ""}`;
+  }
+
+  const summary: AIWeekSummary = {
+    focusAreas: finalFocusAreas,
+    intensity,
+    notes,
+  };
+
   // Validate with Zod schema
-  return AIWeekSummarySchema.parse(mockSummary);
+  return AIWeekSummarySchema.parse(summary);
 }
