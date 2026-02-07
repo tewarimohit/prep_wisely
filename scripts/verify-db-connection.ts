@@ -22,7 +22,7 @@ async function verifyConnection() {
     `;
 
     console.log(`📊 Found ${tables.length} tables:\n`);
-    tables.forEach((table) => {
+    tables.forEach((table: { tablename: string }) => {
       console.log(`  - ${table.tablename}`);
     });
 
@@ -37,7 +37,7 @@ async function verifyConnection() {
       "FeedbackEntry",
     ];
 
-    const existingTables = tables.map((t) => t.tablename);
+    const existingTables = tables.map((t: { tablename: string }) => t.tablename);
     const missingTables = requiredTables.filter(
       (table) => !existingTables.includes(table)
     );
