@@ -59,6 +59,12 @@ export default function DashboardPage() {
           <Link href="/mcq/play" className="text-blue-600 hover:text-blue-800 underline">
             MCQs →
           </Link>
+          <Link
+            href={`/ai/preview?date=${new Date().toISOString().split("T")[0]}&type=day`}
+            className="text-blue-600 hover:text-blue-800 underline"
+          >
+            AI Plan →
+          </Link>
         </div>
       </div>
 
