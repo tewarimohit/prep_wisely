@@ -45,7 +45,13 @@ export async function callAI(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: "Unknown error" }));
-    throw new Error(`AI API error: ${response.status} - ${JSON.stringify(error)}`);
+    // Log server-side only (never expose to client)
+    console.error("[AI Client] API error:", {
+      status: response.status,
+      error: error,
+      model: AI_MODEL,
+    });
+    throw new Error(`AI API error: ${response.status}`);
   }
 
   const data = await response.json();

@@ -116,12 +116,18 @@ Return a JSON object matching the schema exactly.`;
         return validatedPlan;
       } catch (validationError: any) {
         // Zod validation failed - log and fall back
-        console.error("AI day plan validation failed:", validationError.errors || validationError.message);
+        console.error("[AI Planner] Day plan validation failed:", {
+          errors: validationError.errors || validationError.message,
+          context: { weakAreas: context.weakAreas.length, date: context.date },
+        });
         return getFallbackPlan();
       }
     } catch (error: any) {
       // Log error but don't throw - fall back to mocked plan
-      console.error("AI day plan generation failed:", error.message);
+      console.error("[AI Planner] Day plan generation failed:", {
+        message: error.message,
+        context: { weakAreas: context.weakAreas.length, date: context.date },
+      });
       return getFallbackPlan();
     }
   }
@@ -220,12 +226,18 @@ Return a JSON object matching the schema exactly.`;
         return validatedSummary;
       } catch (validationError: any) {
         // Zod validation failed - log and fall back
-        console.error("AI week plan validation failed:", validationError.errors || validationError.message);
+        console.error("[AI Planner] Week plan validation failed:", {
+          errors: validationError.errors || validationError.message,
+          context: { weakAreas: context.weakAreas.length, date: context.date },
+        });
         return getFallbackSummary();
       }
     } catch (error: any) {
       // Log error but don't throw - fall back to mocked summary
-      console.error("AI week plan generation failed:", error.message);
+      console.error("[AI Planner] Week plan generation failed:", {
+        message: error.message,
+        context: { weakAreas: context.weakAreas.length, date: context.date },
+      });
       return getFallbackSummary();
     }
   }

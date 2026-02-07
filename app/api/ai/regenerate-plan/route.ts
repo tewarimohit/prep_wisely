@@ -72,9 +72,14 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    console.error("Regenerate plan error:", error);
+    console.error("[API] Regenerate plan error:", {
+      error: error.message,
+      stack: error.stack,
+      date: body.date,
+      userId: TEST_USER_ID,
+    });
     return NextResponse.json(
-      { error: "Failed to regenerate plan" },
+      { error: "Failed to regenerate plan. Please try again later." },
       { status: 500 }
     );
   }

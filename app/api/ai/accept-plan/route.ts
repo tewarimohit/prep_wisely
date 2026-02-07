@@ -121,9 +121,15 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    console.error("Accept plan error:", error);
+    console.error("[API] Accept plan error:", {
+      error: error.message,
+      stack: error.stack,
+      date: body.date,
+      userId: TEST_USER_ID,
+      planTitle: body.aiPlan?.title,
+    });
     return NextResponse.json(
-      { error: "Failed to accept plan" },
+      { error: "Failed to save plan. Please try again or create manually." },
       { status: 500 }
     );
   }

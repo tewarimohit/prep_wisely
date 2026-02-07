@@ -39,6 +39,7 @@ export default function AIPreviewPage() {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
   const [regenerationLimit, setRegenerationLimit] = useState<string | null>(null);
+  const [acceptSuccess, setAcceptSuccess] = useState(false);
 
   // Fetch preview on mount
   useEffect(() => {
@@ -52,7 +53,11 @@ export default function AIPreviewPage() {
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || "Failed to load preview");
+          // Handle rate limiting gracefully
+          if (response.status === 429) {
+            throw new Error(data.message || "Too many requests. Please try again later.");
+          }
+          throw new Error(data.error || "Failed to load AI suggestion. Please try again later.");
         }
 
         setPreviewData(data);
@@ -74,6 +79,7 @@ export default function AIPreviewPage() {
     try {
       setIsAccepting(true);
       setAcceptError(null);
+      setAcceptSuccess(false);
 
       const response = await fetch("/api/ai/accept-plan", {
         method: "POST",
@@ -92,9 +98,11 @@ export default function AIPreviewPage() {
         throw new Error(data.error || "Failed to accept plan");
       }
 
-      // Navigate to Day page on success
-      // Day page accepts YYYY-MM-DD format in query param
-      router.push(`/day?date=${dateParam}`);
+      // Show success message briefly before navigating
+      setAcceptSuccess(true);
+      setTimeout(() => {
+        router.push(`/day?date=${dateParam}`);
+      }, 1500);
     } catch (err: any) {
       setAcceptError(err.message);
     } finally {
@@ -148,6 +156,10 @@ export default function AIPreviewPage() {
   // Convert current plan to AIDayPlan format for comparison
   const currentAIPlan = currentPlanData ? planToAIDayPlan(currentPlanData) : null;
   
+  // Check if we have weak area data for context explanation
+  const hasWeakAreaData = previewData?.context?.weakAreas && previewData.context.weakAreas.length > 0;
+  const hasLowActivity = previewData?.context?.lastWeekCompletion !== undefined && previewData.context.lastWeekCompletion < 30;
+  
   // Compute diff if we have both plans
   const diff: PlanDiff | null = previewData?.plan && currentAIPlan
     ? computePlanDiff(currentAIPlan, previewData.plan)
@@ -174,7 +186,15 @@ export default function AIPreviewPage() {
   if (error) {
     return (
       <div className="p-8 max-w-3xl mx-auto">
-        <ErrorMessage message={`Could not load preview: ${error}`} />
+        <ErrorMessage message={`Could not load AI suggestion: ${error}`} />
+        <div className="mt-4 p-4 border border-gray-300 rounded-lg bg-gray-50">
+          <p className="text-sm text-gray-700 mb-2">
+            You can create your plan manually instead:
+          </p>
+          <Link href={`/day?date=${dateParam}`} className="text-blue-600 underline">
+            Go to Day Planner →
+          </Link>
+        </div>
         <Link href="/dashboard" className="text-blue-600 underline mt-4 inline-block">
           ← Back to Dashboard
         </Link>
@@ -201,13 +221,34 @@ export default function AIPreviewPage() {
         </Link>
       </div>
 
-      <h1 className="text-3xl font-bold mb-6">AI Plan Preview</h1>
+      <h1 className="text-3xl font-bold mb-2">AI Suggested Plan</h1>
+      <p className="text-sm text-gray-600 mb-6">
+        This plan is a suggestion. You remain in control. You can edit after accepting.
+      </p>
 
       {previewData.metadata && (
         <div className="mb-4 text-sm text-gray-600">
           Generated at: {new Date(previewData.metadata.generatedAt).toLocaleString()}
           {previewData.metadata.modelUsed && (
             <> • Model: {previewData.metadata.modelUsed}</>
+          )}
+        </div>
+      )}
+
+      {/* Context explanation for empty/edge states */}
+      {type === "day" && previewData?.plan && (
+        <div className="mb-4 text-sm text-gray-600">
+          {!hasWeakAreaData && (
+            <p className="mb-2">
+              <span className="font-medium">Note:</span> This is a general suggestion. 
+              Practice MCQs to get personalized recommendations based on your weak areas.
+            </p>
+          )}
+          {hasLowActivity && (
+            <p>
+              <span className="font-medium">Note:</span> Based on your recent activity, 
+              this suggestion focuses on building consistency.
+            </p>
           )}
         </div>
       )}
@@ -286,7 +327,7 @@ export default function AIPreviewPage() {
 
           {/* New Suggestion */}
           <div className="mb-6 p-4 border border-gray-300 rounded-lg border-blue-400 bg-blue-50">
-            <h2 className="text-lg font-semibold mb-2 text-blue-900">New Suggestion</h2>
+            <h2 className="text-lg font-semibold mb-2 text-blue-900">AI Suggested Plan</h2>
             <h3 className="text-md font-medium mb-3">{previewData.plan.title}</h3>
             <div className="space-y-2">
               {previewData.plan.items
@@ -307,7 +348,7 @@ export default function AIPreviewPage() {
               disabled={isAccepting || isRegenerating}
               className="px-6 py-2 bg-green-600 text-white border border-green-700 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isAccepting ? "Accepting..." : "Accept New Plan"}
+              {isAccepting ? "Saving..." : "Accept Suggested Plan"}
             </button>
             
             {currentAIPlan && (
@@ -330,8 +371,8 @@ export default function AIPreviewPage() {
           </div>
 
           {regenerationLimit && (
-            <div className="mt-4 text-orange-600 text-sm">
-              {regenerationLimit}
+            <div className="mt-4 p-3 border border-orange-300 bg-orange-50 rounded text-orange-700 text-sm">
+              {regenerationLimit} You can try again tomorrow or create your plan manually on the Day page.
             </div>
           )}
 
@@ -341,9 +382,15 @@ export default function AIPreviewPage() {
             </div>
           )}
 
+          {acceptSuccess && (
+            <div className="mt-4 p-3 border border-green-300 bg-green-50 rounded text-green-700 text-sm">
+              Plan saved successfully. Redirecting to Day Planner...
+            </div>
+          )}
+
           {acceptError && (
-            <div className="mt-4 text-red-600 text-sm">
-              Failed to accept plan: {acceptError}
+            <div className="mt-4 p-3 border border-red-300 bg-red-50 rounded text-red-700 text-sm">
+              Failed to save plan: {acceptError}. You can create your plan manually on the Day page.
             </div>
           )}
         </>

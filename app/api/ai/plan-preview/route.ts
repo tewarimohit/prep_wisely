@@ -90,9 +90,15 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
-    console.error("Plan preview error:", error);
+    console.error("[API] Plan preview error:", {
+      error: error.message,
+      stack: error.stack,
+      date: dateParam,
+      type,
+      userId: TEST_USER_ID,
+    });
     return NextResponse.json(
-      { error: "Failed to generate plan preview" },
+      { error: "Failed to generate plan preview. Please try again later." },
       { status: 500 }
     );
   }
