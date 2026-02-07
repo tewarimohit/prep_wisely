@@ -2,15 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
-
 /**
  * Fetch week plans from API
+ * User ID is obtained from session on the server
  */
 async function fetchWeekPlans(startDate: string, endDate: string) {
   const response = await fetch(
-    `/api/plans/week?userId=${TEST_USER_ID}&startDate=${startDate}&endDate=${endDate}`
+    `/api/plans/week?startDate=${startDate}&endDate=${endDate}`
   );
 
   if (!response.ok) {

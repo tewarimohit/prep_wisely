@@ -3,9 +3,7 @@ import { buildPlannerContext } from "@/lib/services/plannerContext";
 import { generateDayPlan, generateWeekPlan } from "@/lib/services/aiPlanner";
 import { checkRateLimit, getRateLimitStatus } from "@/lib/services/rateLimiter";
 import { getAIModel } from "@/lib/services/aiClient";
-
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
+import { getUserId } from "@/lib/auth-helpers";
 
 /**
  * GET /api/ai/plan-preview?date=YYYY-MM-DD&type=day|week
@@ -42,10 +40,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get authenticated user ID
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     // Check rate limit
-    const rateLimitAllowed = await checkRateLimit(TEST_USER_ID);
+    const rateLimitAllowed = await checkRateLimit(userId);
     if (!rateLimitAllowed) {
-      const status = getRateLimitStatus(TEST_USER_ID);
+      const status = getRateLimitStatus(userId);
       return NextResponse.json(
         {
           error: "Rate limit exceeded",
@@ -56,7 +63,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build planner context from real app data
-    const context = await buildPlannerContext(TEST_USER_ID, dateParam);
+    const context = await buildPlannerContext(userId, dateParam);
 
     // Generate plan based on type
     const startTime = Date.now();
@@ -96,7 +103,6 @@ export async function GET(request: NextRequest) {
       stack: error.stack,
       date: dateParam || "unknown",
       type: type || "unknown",
-      userId: TEST_USER_ID,
     });
     return NextResponse.json(
       { error: "Failed to generate plan preview. Please try again later." },

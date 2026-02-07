@@ -3,9 +3,7 @@ import { buildPlannerContext } from "@/lib/services/plannerContext";
 import { generateDayPlan } from "@/lib/services/aiPlanner";
 import { checkRegenerationLimit, getRegenerationStatus } from "@/lib/services/rateLimiter";
 import { getAIModel } from "@/lib/services/aiClient";
-
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
+import { getUserId } from "@/lib/auth-helpers";
 
 /**
  * POST /api/ai/regenerate-plan
@@ -33,10 +31,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get authenticated user ID
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     // Check regeneration limit
-    const regenerationAllowed = await checkRegenerationLimit(TEST_USER_ID);
+    const regenerationAllowed = await checkRegenerationLimit(userId);
     if (!regenerationAllowed) {
-      const status = getRegenerationStatus(TEST_USER_ID);
+      const status = getRegenerationStatus(userId);
       return NextResponse.json(
         {
           error: "Regeneration limit exceeded",
@@ -47,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build planner context from real app data (same as preview)
-    const context = await buildPlannerContext(TEST_USER_ID, body.date);
+    const context = await buildPlannerContext(userId, body.date);
 
     // Generate new plan
     const startTime = Date.now();
@@ -77,7 +84,6 @@ export async function POST(request: NextRequest) {
       error: error.message,
       stack: error.stack,
       date: body?.date || "unknown",
-      userId: TEST_USER_ID,
     });
     return NextResponse.json(
       { error: "Failed to regenerate plan. Please try again later." },

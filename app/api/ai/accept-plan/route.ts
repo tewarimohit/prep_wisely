@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { AIDayPlanSchema } from "@/lib/contracts/aiPlanner";
-
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
+import { getUserId } from "@/lib/auth-helpers";
 
 /**
  * POST /api/ai/accept-plan
@@ -34,6 +32,15 @@ export async function POST(request: NextRequest) {
     // Re-validate AI plan with Zod (never trust client)
     const validatedPlan = AIDayPlanSchema.parse(body.aiPlan);
 
+    // Get authenticated user ID
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     // Convert date string to Date object
     const planDate = new Date(body.date + "T00:00:00.000Z");
     planDate.setUTCHours(0, 0, 0, 0);
@@ -43,7 +50,7 @@ export async function POST(request: NextRequest) {
       // Find existing plan or create new
       const existing = await tx.plan.findFirst({
         where: {
-          userId: TEST_USER_ID,
+          userId,
           date: planDate,
         },
       });
@@ -61,7 +68,7 @@ export async function POST(request: NextRequest) {
         // Create new plan
         plan = await tx.plan.create({
           data: {
-            userId: TEST_USER_ID,
+            userId,
             date: planDate,
             title: validatedPlan.title,
           },
@@ -126,7 +133,6 @@ export async function POST(request: NextRequest) {
       error: error.message,
       stack: error.stack,
       date: body?.date || "unknown",
-      userId: TEST_USER_ID,
       planTitle: body?.aiPlan?.title || "unknown",
     });
     return NextResponse.json(

@@ -2,16 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
-
 /**
  * Fetch MCQs for play session
+ * User ID is obtained from session on the server
  */
-async function fetchMCQs(userId: string, topicIds?: string[], limit: number = 10) {
+async function fetchMCQs(topicIds?: string[], limit: number = 10) {
   const topicIdsParam = topicIds && topicIds.length > 0 ? topicIds.join(",") : undefined;
   const params = new URLSearchParams({
-    userId,
     mode: "practice",
     limit: limit.toString(),
   });
@@ -34,7 +31,7 @@ async function fetchMCQs(userId: string, topicIds?: string[], limit: number = 10
  */
 export function useMCQPlay(topicIds?: string[], limit: number = 10) {
   return useQuery({
-    queryKey: ["mcqPlay", TEST_USER_ID, topicIds, limit],
-    queryFn: () => fetchMCQs(TEST_USER_ID, topicIds, limit),
+    queryKey: ["mcqPlay", topicIds, limit],
+    queryFn: () => fetchMCQs(topicIds, limit),
   });
 }

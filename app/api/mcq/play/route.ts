@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { MCQPlayRequestSchema, MCQSafeSchema } from "@/lib/contracts/mcq";
+import { getUserId } from "@/lib/auth-helpers";
 
 /**
  * GET /api/mcq/play
@@ -8,8 +9,16 @@ import { MCQPlayRequestSchema, MCQSafeSchema } from "@/lib/contracts/mcq";
  */
 export async function GET(request: NextRequest) {
   try {
+    // Get authenticated user ID
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
-    const userId = searchParams.get("userId");
     const mode = searchParams.get("mode") || "practice";
     const topicIdsParam = searchParams.get("topicIds");
     const limitParam = searchParams.get("limit");
@@ -19,7 +28,7 @@ export async function GET(request: NextRequest) {
     const limit = limitParam ? parseInt(limitParam, 10) : 10;
 
     const validated = MCQPlayRequestSchema.parse({
-      userId: userId || "",
+      userId,
       mode,
       topicIds,
       limit,
@@ -102,8 +111,20 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Get authenticated user ID
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
-    const validated = MCQPlayRequestSchema.parse(body);
+    const validated = MCQPlayRequestSchema.parse({
+      ...body,
+      userId, // Override userId from body with authenticated user
+    });
 
     // Create a new session
     const newSession = await prisma.mCQSession.create({

@@ -6,6 +6,7 @@ import {
   MCQResult,
 } from "@/lib/contracts/mcq";
 import { updateWeakAreas } from "@/lib/services/weakAreaService";
+import { getUserId } from "@/lib/auth-helpers";
 
 /**
  * POST /api/mcq/response
@@ -36,7 +37,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify session exists and get userId
+    // Get authenticated user ID
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // Verify session exists and belongs to authenticated user
     const session = await prisma.mCQSession.findUnique({
       where: { id: validated.sessionId },
       select: {
@@ -52,6 +62,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Security check: ensure session belongs to authenticated user
+    if (session.userId !== userId) {
+      return NextResponse.json(
+        { error: "Unauthorized: Session does not belong to user" },
+        { status: 403 }
+      );
+    }
+
     // Compute correctness server-side
     const isCorrect = validated.choice === mcq.answerIndex;
 
@@ -63,13 +81,13 @@ export async function POST(request: NextRequest) {
         choice: validated.choice,
         correct: isCorrect,
         timeMs: validated.timeMs,
-        userId: session.userId,
+        userId,
       },
     });
 
     // Update weak area snapshots (non-blocking - failures won't break response)
     updateWeakAreas({
-      userId: session.userId,
+      userId,
       mcqId: validated.mcqId,
       isCorrect,
     }).catch((error) => {

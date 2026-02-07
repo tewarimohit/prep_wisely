@@ -3,7 +3,7 @@
  * Run this after setting up production database
  */
 
-import { prisma } from "@/lib/db";
+import prisma from "@/lib/db";
 
 async function verifyConnection() {
   console.log("🔍 Verifying database connection...\n");

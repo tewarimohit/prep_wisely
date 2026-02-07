@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { WeakAreaReadSchema } from "@/lib/contracts/weakAreas";
+import { getUserId } from "@/lib/auth-helpers";
 
 /**
  * GET /api/weak-areas
@@ -9,13 +10,12 @@ import { WeakAreaReadSchema } from "@/lib/contracts/weakAreas";
  */
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const userId = searchParams.get("userId");
-
+    // Get authenticated user ID
+    const userId = await getUserId(request);
     if (!userId) {
       return NextResponse.json(
-        { error: "userId is required" },
-        { status: 400 }
+        { error: "Unauthorized" },
+        { status: 401 }
       );
     }
 

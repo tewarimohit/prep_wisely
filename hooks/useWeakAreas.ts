@@ -2,14 +2,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
-
 /**
  * Fetch weak areas from API
+ * User ID is obtained from session on the server
  */
-async function fetchWeakAreas(userId: string) {
-  const response = await fetch(`/api/weak-areas?userId=${userId}`);
+async function fetchWeakAreas() {
+  const response = await fetch(`/api/weak-areas`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch weak areas: ${response.status}`);
@@ -19,11 +17,11 @@ async function fetchWeakAreas(userId: string) {
 }
 
 /**
- * Hook to fetch weak areas for a user
+ * Hook to fetch weak areas for the authenticated user
  */
 export function useWeakAreas() {
   return useQuery({
-    queryKey: ["weakAreas", TEST_USER_ID],
-    queryFn: () => fetchWeakAreas(TEST_USER_ID),
+    queryKey: ["weakAreas"],
+    queryFn: () => fetchWeakAreas(),
   });
 }

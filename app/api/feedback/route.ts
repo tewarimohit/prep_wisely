@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { FeedbackSubmitSchema, FeedbackReadSchema } from "@/lib/contracts/feedback";
-
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
+import { getUserId } from "@/lib/auth-helpers";
 
 /**
  * POST /api/feedback
@@ -11,6 +9,15 @@ const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
  */
 export async function POST(request: NextRequest) {
   try {
+    // Get authenticated user ID
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     
     // Validate input
@@ -23,7 +30,7 @@ export async function POST(request: NextRequest) {
     // Find existing feedback or create new
     const existing = await prisma.feedbackEntry.findFirst({
       where: {
-        userId: TEST_USER_ID,
+        userId,
         date: feedbackDate,
       },
     });
@@ -43,7 +50,7 @@ export async function POST(request: NextRequest) {
       // Create new feedback
       feedback = await prisma.feedbackEntry.create({
         data: {
-          userId: TEST_USER_ID,
+          userId,
           date: feedbackDate,
           mood: validated.mood,
           blockers: validated.blockers || null,
@@ -105,6 +112,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get authenticated user ID
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     // Convert date string to Date object
     const feedbackDate = new Date(dateParam + "T00:00:00.000Z");
     feedbackDate.setUTCHours(0, 0, 0, 0);
@@ -112,7 +128,7 @@ export async function GET(request: NextRequest) {
     // Fetch feedback
     const feedback = await prisma.feedbackEntry.findFirst({
       where: {
-        userId: TEST_USER_ID,
+        userId,
         date: feedbackDate,
       },
     });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getUserId } from "@/lib/auth-helpers";
 
 /**
  * Compute completion status based on plan items
@@ -27,13 +28,12 @@ function computeCompletionStatus(items: Array<{ status: string }>): string {
 
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Get userId from auth context (session/token)
-    // For now, getting from query param for development
-    const userId = request.nextUrl.searchParams.get("userId");
+    // Get authenticated user ID
+    const userId = await getUserId(request);
     if (!userId) {
       return NextResponse.json(
-        { error: "userId is required" },
-        { status: 400 }
+        { error: "Unauthorized" },
+        { status: 401 }
       );
     }
 

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
+import { getUserId } from "@/lib/auth-helpers";
 
 /**
  * GET /api/mcq/stats?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
@@ -35,10 +33,19 @@ export async function GET(request: NextRequest) {
     const endDate = new Date(endDateParam + "T23:59:59.999Z");
     endDate.setUTCHours(23, 59, 59, 999);
 
+    // Get authenticated user ID
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     // Fetch MCQ responses in date range
     const responses = await prisma.mCQResponse.findMany({
       where: {
-        userId: TEST_USER_ID,
+        userId,
         createdAt: {
           gte: startDate,
           lte: endDate,

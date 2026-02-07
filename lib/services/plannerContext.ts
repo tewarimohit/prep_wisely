@@ -1,9 +1,6 @@
 import { prisma } from "@/lib/db";
 import { PlannerInput, PlannerInputSchema } from "@/lib/contracts/aiPlanner";
 
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
-
 /**
  * Get week dates (Monday to Sunday) for a given date
  */

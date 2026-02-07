@@ -1,26 +1,28 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SessionProvider } from "next-auth/react";
 import { useState } from "react";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  // Create QueryClient once per app lifecycle
   const [queryClient] = useState(
     () =>
       new QueryClient({
         defaultOptions: {
           queries: {
-            retry: false,
+            staleTime: 60 * 1000, // 1 minute
             refetchOnWindowFocus: false,
           },
           mutations: {
-            retry: false, // No retries for mutations
+            retry: false,
           },
         },
       })
   );
 
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <SessionProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </SessionProvider>
   );
 }

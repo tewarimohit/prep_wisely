@@ -4,9 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useWeekPlans } from "./useWeekPlans";
 import { useWeakAreas } from "./useWeakAreas";
 
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
-
 /**
  * Get week dates (Monday to Sunday)
  */

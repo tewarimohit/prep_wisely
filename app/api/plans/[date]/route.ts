@@ -77,13 +77,12 @@ export async function POST(
       );
     }
 
-    // TODO: Get userId from auth context (session/token)
-    // For now, getting from query param for development
-    const userId = request.nextUrl.searchParams.get("userId");
+    // Get authenticated user ID
+    const userId = await getUserId(request);
     if (!userId) {
       return NextResponse.json(
-        { error: "userId is required" },
-        { status: 400 }
+        { error: "Unauthorized" },
+        { status: 401 }
       );
     }
 

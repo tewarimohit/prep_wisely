@@ -1,8 +1,5 @@
 import { Task } from "@/types/microplan";
 
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
-
 /**
  * Convert DD/MM/YYYY to YYYY-MM-DD for API
  */
@@ -14,12 +11,12 @@ export function convertDateToApiFormat(dateStr: string): string {
 /**
  * Fetcher function for GET /api/plans/[date]
  * Returns null if no plan exists, or plan object
+ * User ID is obtained from session on the server
  */
 export async function fetchPlan(dateStr: string): Promise<any> {
   const apiDate = convertDateToApiFormat(dateStr);
-  const userId = TEST_USER_ID;
 
-  const response = await fetch(`/api/plans/${apiDate}?userId=${userId}`);
+  const response = await fetch(`/api/plans/${apiDate}`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch plan: ${response.status}`);
@@ -41,7 +38,6 @@ export async function upsertPlan({
   tasks: Task[];
 }): Promise<any> {
   const apiDate = convertDateToApiFormat(dateStr);
-  const userId = TEST_USER_ID;
 
   // Convert Tasks to PlanItems format
   const items = tasks.map((task, index) => ({
@@ -57,7 +53,7 @@ export async function upsertPlan({
     items,
   };
 
-  const response = await fetch(`/api/plans/${apiDate}?userId=${userId}`, {
+  const response = await fetch(`/api/plans/${apiDate}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -6,9 +6,6 @@ import { Task } from "@/types/microplan";
 import { upsertPlan, convertDateToApiFormat } from "@/lib/api/plans";
 import { planQueryKey } from "./usePlan";
 
-// TODO: Replace with auth context userId
-const TEST_USER_ID = "cmko9jw0y0002dx23vbn4lnm2";
-
 /**
  * Hook for upserting plan with optimistic updates
  * Handles optimistic updates, rollback on error, and server reconciliation
@@ -30,7 +27,6 @@ export function usePlanMutation(
 
       // Create optimistic plan payload
       const apiDate = convertDateToApiFormat(dateStr);
-      const userId = TEST_USER_ID;
       const now = new Date().toISOString();
       const planDate = new Date(apiDate + "T00:00:00.000Z");
       const normalizedDate = new Date(planDate);
@@ -49,6 +45,7 @@ export function usePlanMutation(
       }));
 
       // Build optimistic plan object
+      // Note: userId will be set by server response - not needed in optimistic update
       const optimisticPlan = previousPlan
         ? {
             // Update existing plan
@@ -60,7 +57,7 @@ export function usePlanMutation(
         : {
             // Create new plan structure
             id: `temp-${Date.now()}`,
-            userId,
+            userId: "temp", // Placeholder - server will return real userId
             date: normalizedDate.toISOString(),
             title: "Daily Plan",
             items: optimisticItems,
