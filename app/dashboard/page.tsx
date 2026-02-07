@@ -64,7 +64,10 @@ export default function DashboardPage() {
 
       {/* Weekly Plan Summary */}
       <div className="mb-6 p-4 border border-gray-200 rounded-lg">
-        <h2 className="text-lg font-semibold mb-3">This Week's Plan</h2>
+        <h2 className="text-lg font-semibold mb-1">This Week at a Glance</h2>
+        <p className="text-sm text-gray-600 mb-3">
+          Your plan completion progress for the current week
+        </p>
         {weekPlans.isLoading ? (
           <div className="text-gray-500">Loading...</div>
         ) : weekPlans.error ? (
@@ -87,7 +90,7 @@ export default function DashboardPage() {
               </div>
             )}
             {daysPlanned === 0 && (
-              <div className="text-gray-500 italic text-sm">No plans created this week</div>
+              <div className="text-gray-500 text-sm">No plans created this week</div>
             )}
           </div>
         )}
@@ -95,25 +98,28 @@ export default function DashboardPage() {
 
       {/* MCQ Snapshot */}
       <div className="mb-6 p-4 border border-gray-200 rounded-lg">
-        <h2 className="text-lg font-semibold mb-3">MCQ Performance</h2>
+        <h2 className="text-lg font-semibold mb-1">MCQ Performance</h2>
+        <p className="text-sm text-gray-600 mb-3">
+          Your accuracy and practice volume from this week's MCQ sessions
+        </p>
         {mcqStats.isLoading ? (
           <div className="text-gray-500">Loading...</div>
         ) : mcqStats.error ? (
           <div className="text-red-600 text-sm">Failed to load MCQ stats</div>
         ) : mcqData.totalAttempts === 0 ? (
-          <div className="text-gray-500 italic text-sm">No MCQs attempted this week</div>
+          <div className="text-gray-500 text-sm">No MCQs attempted this week</div>
         ) : (
           <div className="space-y-2">
             <div>
-              <span className="font-medium">Attempted:</span> {mcqData.totalAttempts} questions
+              <span className="font-medium">Questions attempted:</span> {mcqData.totalAttempts}
             </div>
             <div>
-              <span className="font-medium">Accuracy:</span>{" "}
+              <span className="font-medium">MCQ accuracy:</span>{" "}
               <span className="font-semibold">{mcqData.accuracy.toFixed(1)}%</span>
             </div>
             {mcqData.avgTimeMs > 0 && (
               <div className="text-sm text-gray-600">
-                Avg time: {Math.round(mcqData.avgTimeMs / 1000)}s per question
+                Average time: {Math.round(mcqData.avgTimeMs / 1000)}s per question
               </div>
             )}
           </div>
@@ -122,18 +128,21 @@ export default function DashboardPage() {
 
       {/* Weak Areas */}
       <div className="mb-6 p-4 border border-gray-200 rounded-lg">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Weak Areas</h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-semibold">Areas to Focus</h2>
           <Link href="/weak-areas" className="text-sm text-blue-600 hover:text-blue-800 underline">
             View all →
           </Link>
         </div>
+        <p className="text-sm text-gray-600 mb-3">
+          Topics where your accuracy is below target, ranked by priority
+        </p>
         {weakAreas.isLoading ? (
           <div className="text-gray-500">Loading...</div>
         ) : weakAreas.error ? (
           <div className="text-red-600 text-sm">Failed to load weak areas</div>
         ) : topWeakAreas.length === 0 ? (
-          <div className="text-gray-500 italic text-sm">No weak areas identified yet</div>
+          <div className="text-gray-500 text-sm">No focus areas identified yet</div>
         ) : (
           <div className="space-y-2">
             {topWeakAreas.map((area: any) => {
@@ -159,13 +168,16 @@ export default function DashboardPage() {
 
       {/* Feedback Signal */}
       <div className="mb-6 p-4 border border-gray-200 rounded-lg">
-        <h2 className="text-lg font-semibold mb-3">Mood</h2>
+        <h2 className="text-lg font-semibold mb-1">Weekly Mood</h2>
+        <p className="text-sm text-gray-600 mb-3">
+          Your overall sentiment pattern from daily feedback entries
+        </p>
         {feedbackWeek.isLoading ? (
           <div className="text-gray-500">Loading...</div>
         ) : feedbackWeek.error ? (
           <div className="text-red-600 text-sm">Failed to load feedback</div>
         ) : feedbackData.entries === 0 ? (
-          <div className="text-gray-500 italic text-sm">No feedback recorded this week</div>
+          <div className="text-gray-500 text-sm">No feedback recorded this week</div>
         ) : (
           <div className="text-sm">
             {getMoodDisplay() || "No mood data available"}
