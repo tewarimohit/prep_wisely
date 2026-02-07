@@ -128,6 +128,12 @@ export default function WeekPage() {
         <h1 className="text-3xl font-bold">Week View</h1>
         <div className="flex gap-4">
           <Link
+            href="/dashboard"
+            className="text-blue-600 hover:text-blue-800 underline"
+          >
+            Dashboard →
+          </Link>
+          <Link
             href="/mcq/play"
             className="text-blue-600 hover:text-blue-800 underline"
           >

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Task } from "@/types/microplan";
 import TaskTitleSchema from "@/lib/contracts";
 import formatDate from "@/lib/utils";
@@ -249,6 +250,11 @@ export default function DayPage() {
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
+      <div className="mb-4">
+        <Link href="/dashboard" className="text-blue-600 underline text-sm">
+          ← Dashboard
+        </Link>
+      </div>
       <div className="flex items-center gap-2 mb-4">
         <div className="text-gray-600">{formattedDate}</div>
         {isViewingSelectedDate && (
