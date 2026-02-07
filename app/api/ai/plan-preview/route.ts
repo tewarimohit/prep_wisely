@@ -93,8 +93,8 @@ export async function GET(request: NextRequest) {
     console.error("[API] Plan preview error:", {
       error: error.message,
       stack: error.stack,
-      date: dateParam,
-      type,
+      date: dateParam || "unknown",
+      type: type || "unknown",
       userId: TEST_USER_ID,
     });
     return NextResponse.json(

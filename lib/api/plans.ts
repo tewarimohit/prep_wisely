@@ -53,7 +53,7 @@ export async function upsertPlan({
   }));
 
   const payload = {
-    title: "Daily Plan", // TODO: Make title editable
+    title: "Daily Plan", // TODO: Make title editable in UI
     items,
   };
 

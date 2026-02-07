@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     console.error("[API] Regenerate plan error:", {
       error: error.message,
       stack: error.stack,
-      date: body.date,
+      date: body?.date || "unknown",
       userId: TEST_USER_ID,
     });
     return NextResponse.json(

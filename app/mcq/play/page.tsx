@@ -72,7 +72,11 @@ export default function MCQPlayPage() {
         timeMs: questionTimeMs,
       });
 
-      setResult(responseResult);
+            setResult({
+              correct: responseResult.correct,
+              explanation: responseResult.explanation || null,
+              correctAnswerIndex: responseResult.correctAnswerIndex,
+            });
 
       // Update session stats
       setSessionStats((prev) => ({

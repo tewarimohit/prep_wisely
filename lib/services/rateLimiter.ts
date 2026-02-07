@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 
 /**
  * Simple in-memory rate limiter (per user per day)
- * In production, consider using Redis or a dedicated rate limiting service
+ * TODO: Replace with Redis-based rate limiting for production (supports multi-instance deployments)
  */
 const rateLimitCache = new Map<string, { count: number; date: string }>();
 

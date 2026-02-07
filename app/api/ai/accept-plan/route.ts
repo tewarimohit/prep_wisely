@@ -124,9 +124,9 @@ export async function POST(request: NextRequest) {
     console.error("[API] Accept plan error:", {
       error: error.message,
       stack: error.stack,
-      date: body.date,
+      date: body?.date || "unknown",
       userId: TEST_USER_ID,
-      planTitle: body.aiPlan?.title,
+      planTitle: body?.aiPlan?.title || "unknown",
     });
     return NextResponse.json(
       { error: "Failed to save plan. Please try again or create manually." },
