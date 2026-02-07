@@ -312,12 +312,17 @@ npm run db:generate
 # Push schema changes (dev)
 npm run db:push
 
-# Create migration (prod)
+# Create migration (dev)
 npm run db:migrate
+
+# Deploy migrations (production - managed database)
+npm run db:migrate:deploy
 
 # Open Prisma Studio
 npm run db:studio
 ```
+
+> **Production Setup**: See [docs/DATABASE_SETUP.md](./docs/DATABASE_SETUP.md) for detailed instructions on setting up a managed PostgreSQL database.
 
 ### Code Quality
 ```bash
@@ -348,7 +353,7 @@ See [BACKLOG.md](./BACKLOG.md) for planned features:
 
 ## License
 
-Private project - All rights reserved
+Prep Wisely © 2026 - All rights reserved
 
 ## Acknowledgments
 
